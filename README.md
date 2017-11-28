@@ -3,7 +3,7 @@
 An open source arduino based firmware for esp8266. To which we connect the desired sensors
 and configure them in the settings. Sensors data is displayed on webpage and can be pushed
 or pulled from it. Data can be periodically pushed:
- - to Domoticz (home automation system) via domoticz http api
+ - to <a href="https://domoticz.com/">Domoticz</a> (home automation system) via domoticz http api
  - or via Simple http post   
 Or pulled via http as json data.
 
@@ -20,7 +20,7 @@ output can be button or url controlled.
  - browse and upload binary file
  - if everything goes well esp8266 will reboot and boot up with new firmware
 
-## Flashing the firmware using esptool.py
+## Flashing the firmware using <a href="https://github.com/espressif/esptool">esptool.py</a>
  - install esptool (debian): 
         
         user@hp:~ > sudo pip install esptool
