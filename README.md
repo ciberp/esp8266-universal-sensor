@@ -59,3 +59,5 @@ ssid using psk **password**. When connected open url:
     http://192.168.4.1/settings
 and configure system settings to your needs. Next time esp8266 will reboot it will automatically connect to your AP set in settings. If it can't connect it will again automatically turn on own AP with ap ssid and ap psk set in settings.
 
+## screenshots
+![universal-sensor-root](https://user-images.githubusercontent.com/23559198/33344753-53df22e4-d48a-11e7-9f35-2d9ede40e03d.png)
