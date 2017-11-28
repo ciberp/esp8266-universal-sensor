@@ -57,10 +57,24 @@ After flashing esp8266 will boot up and turn on software access point with ssid 
 ssid using psk **password**. When connected open url: 
     
     http://192.168.4.1/settings
-and configure system settings to your needs. Next time esp8266 will reboot it will automatically connect to your AP set in settings. If it can't connect it will again automatically turn on own AP with ap ssid and ap psk set in settings.
+and configure system settings to your needs. Next time esp8266 will reboot it will automatically connect to your AP set in settings. If it can't connect it will again automatically turn on own AP with ap ssid and ap psk set in settings. To see esp8266 IP address when connected to your wifi check serial terminal:
 
-## screenshots
+    user@hp:~ > miniterm.py /dev/ttyUSB0 115200
+    --- Miniterm on /dev/ttyUSB0  115200,8,N,1 ---
+    --- Quit: Ctrl+] | Menu: Ctrl+T | Help: Ctrl+T followed by Ctrl+H ---
+    ;l␀d��|␀�$�|␃␄␌␄�␌d�␄c|ǃ␂�␛�{�c�␌b��og�l'o���␌#␜x�l{l{$p�'�␘␃␄
+    AP IP address: 192.168.4.1
+
+
+    Connecting to WiFi..
+    Connected to SSID: W32.Blaster.Worm
+    IP address: 172.22.0.18
+    Looking for 1-Wire devices...
+
+## Screenshots
 root webpage
 ![universal-sensor-root](https://user-images.githubusercontent.com/23559198/33344753-53df22e4-d48a-11e7-9f35-2d9ede40e03d.png)
 settings
 ![universal-sensor-settings](https://user-images.githubusercontent.com/23559198/33344860-a36f7c32-d48a-11e7-819f-ddf45ef0c93c.png)
+json
+![universal-sensor-json](https://user-images.githubusercontent.com/23559198/33344947-e770307a-d48a-11e7-8612-707541fe1836.png)
