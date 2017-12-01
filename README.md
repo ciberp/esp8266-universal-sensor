@@ -19,6 +19,16 @@ output can be button or url controlled.
         http://sensors_ip_address/espupdate
  - browse and upload binary file
  - if everything goes well esp8266 will reboot and boot up with new firmware
+ 
+## Flashing using <a href="https://github.com/nodemcu/nodemcu-flasher">NodeMCU Flasher</a> Windows
+
+<a href="https://github.com/nodemcu/nodemcu-flasher/raw/master/Win32/Release/ESP8266Flasher.exe">Win32 Windows Flasher</a><br>
+<a href="https://github.com/nodemcu/nodemcu-flasher/raw/master/Win64/Release/ESP8266Flasher.exe">Win64 Windows Flasher</a>
+
+Set universal-sensor.bin<br>
+![flasher](https://github.com/nodemcu/nodemcu-flasher/blob/master/Resources/Images/NodeMCU-Flasher-Setting.png)<br>
+Choose proper COM port and click Flash<br>
+![flasher](https://github.com/nodemcu/nodemcu-flasher/blob/master/Resources/Images/NodeMCU-Flasher-Success.png)
 
 ## Flashing the firmware using <a href="https://github.com/espressif/esptool">esptool.py</a>
  - install esptool (debian): 
