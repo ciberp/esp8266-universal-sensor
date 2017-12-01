@@ -86,7 +86,7 @@ and configure system settings to your needs. Next time esp8266 will reboot it wi
 ## Screenshots
 root webpage
 ![universal-sensor-root](https://user-images.githubusercontent.com/23559198/33344753-53df22e4-d48a-11e7-9f35-2d9ede40e03d.png)
-settings
+settings (http://IP_address/settings)
 ![universal-sensor-settings](https://user-images.githubusercontent.com/23559198/33344860-a36f7c32-d48a-11e7-819f-ddf45ef0c93c.png)
 json
 ![universal-sensor-json](https://user-images.githubusercontent.com/23559198/33344947-e770307a-d48a-11e7-8612-707541fe1836.png)
