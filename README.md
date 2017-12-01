@@ -31,7 +31,7 @@ Set universal-sensor.bin and set offset to 0x00000<br>
 Choose proper COM port and click Flash<br>
 ![flasher](https://github.com/nodemcu/nodemcu-flasher/blob/master/Resources/Images/NodeMCU-Flasher-Success.png)
 
-## Flashing the firmware using <a href="https://github.com/espressif/esptool">esptool.py</a>
+## Flashing the firmware using python tool <a href="https://github.com/espressif/esptool">esptool.py</a>
  - install esptool (debian): 
         
         user@hp:~ > sudo pip install esptool
