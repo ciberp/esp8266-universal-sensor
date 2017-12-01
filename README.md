@@ -20,12 +20,13 @@ output can be button or url controlled.
  - browse and upload binary file
  - if everything goes well esp8266 will reboot and boot up with new firmware
  
-## Flashing using <a href="https://github.com/nodemcu/nodemcu-flasher">NodeMCU Flasher</a> Windows
+## Flashing the firmware using windows tool <a href="https://github.com/nodemcu/nodemcu-flasher">NodeMCU Flasher</a>
 
-<a href="https://github.com/nodemcu/nodemcu-flasher/raw/master/Win32/Release/ESP8266Flasher.exe">Win32 Windows Flasher</a><br>
-<a href="https://github.com/nodemcu/nodemcu-flasher/raw/master/Win64/Release/ESP8266Flasher.exe">Win64 Windows Flasher</a>
+Download <a href="https://github.com/nodemcu/nodemcu-flasher/raw/master/Win32/Release/ESP8266Flasher.exe">Win32 Windows Flasher</a><br>
+Download <a href="https://github.com/nodemcu/nodemcu-flasher/raw/master/Win64/Release/ESP8266Flasher.exe">Win64 Windows Flasher</a><br>
+Download <a href="https://github.com/ciberp/esp8266-universal-sensor/raw/master/universal-sensor.bin">universal-sensor.bin</a>
 
-Set universal-sensor.bin<br>
+Set universal-sensor.bin and set offset to 0x00000<br>
 ![flasher](https://github.com/nodemcu/nodemcu-flasher/blob/master/Resources/Images/NodeMCU-Flasher-Setting.png)<br>
 Choose proper COM port and click Flash<br>
 ![flasher](https://github.com/nodemcu/nodemcu-flasher/blob/master/Resources/Images/NodeMCU-Flasher-Success.png)
@@ -41,6 +42,7 @@ Choose proper COM port and click Flash<br>
    and search for something like: 
    
         usb 6-1: ch341-uart converter now attached to ttyUSB0
+ - download <a href="https://github.com/ciberp/esp8266-universal-sensor/raw/master/universal-sensor.bin">universal-sensor.bin</a>
  - run esptool: 
  
         user@hp:~ > esptool.py --port /dev/ttyUSB0 write_flash 0x0000  universal-sensor.bin
