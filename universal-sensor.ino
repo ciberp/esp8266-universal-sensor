@@ -8,11 +8,12 @@
     #include <BME280I2C.h>
     #include <Wire.h>
     #include "DHT.h"
-//    #include <WiFiUdp.h>
+    #include <WiFiUdp.h>
 //    #include <TimeLib.h>
 //    #include <Timezone.h>
     #include <ESP8266HTTPClient.h>
     #include <NewPing.h>
+    #include <MQTTClient.h>
     
 //        REASON_DEFAULT_RST      = 0,   /* normal startup by power on */
 //        REASON_WDT_RST         = 1,   /* hardware watch dog reset */
@@ -22,12 +23,12 @@
 //        REASON_DEEP_SLEEP_AWAKE   = 5,   /* wake up from deep-sleep */
 //        REASON_EXT_SYS_RST      = 6      /* external system reset */ - See more at: http://www.esp8266.com/viewtopic.php?f=32&t=13388#sthash.Pi59f7lq.dpuf 
     
-//    WiFiUDP udp;
+    WiFiUDP udp;
     unsigned int localPort = 2390;
     // default IP, povozijo ga nastavitve iz EEPROM-a
     IPAddress syslogServer(0, 0, 0, 0);
     int LastSyslogMsgID[10];
-    String Version = "20171126";
+    String Version = "20171214";
         
     ADC_MODE(ADC_VCC);
     boolean TurnOff60SoftAP;
@@ -112,6 +113,10 @@
       char Ultrasonic_ident[Ultrasonic_Max_Sensors][StringLenghtNormal];      // support up to 5 sensors names!!!
       int Ultrasonic_domoticz_idx[Ultrasonic_Max_Sensors];
       int Ultrasonic_offset[Ultrasonic_Max_Sensors];
+      char mqtt_server[StringLenghtURL];
+      boolean mqtt_server_enabled;
+      char mqtt_key[StringLenghtNormal];
+      char mqtt_secret[StringLenghtNormal];
       
     } ObjectSettings;
     ObjectSettings SETTINGS;
@@ -126,6 +131,7 @@
     unsigned long previousMillisMinis = 0;
     unsigned long previousHttpPost = 0;
     unsigned long previousDomoticzUpdate = 0;
+    unsigned long previousMQTTReconnect = 0;
 
  
     // DS18B20 Temperature sensors
@@ -154,6 +160,13 @@
 
     // Ultrasonic sensor
     int Ultrasonic_All_Sensor_Values_Distance[Ultrasonic_Max_Sensors];
+    
+
+    //mqtt
+    WiFiClient net;
+    MQTTClient client;
+    IPAddress mqtt_broker(172, 22, 0, 22);
+    boolean MQTT_Connected;
     
     // pins, 
     // ! pazi ob boot-u, normal mode: D8=LOW, D4=HIGH, D3=HIGH  
@@ -407,6 +420,18 @@
         SETTINGS.domoticz_idx_voltage = server.arg("domvolt").toInt();
         SETTINGS.domoticz_idx_uptime = server.arg("domtime").toInt();
         SETTINGS.domoticz_idx_wifi = server.arg("domwifi").toInt();
+        // MQTT settings
+        if (server.arg("mqen").toInt() == 1) {
+          SETTINGS.mqtt_server_enabled = true;
+          mqtt_init();
+          mqtt_connect(); 
+        }
+        else {
+          SETTINGS.mqtt_server_enabled = false;
+        }
+        strcpy (SETTINGS.mqtt_server, server.arg("mqbr").c_str());
+        strcpy (SETTINGS.mqtt_key, server.arg("mqkey").c_str());
+        strcpy (SETTINGS.mqtt_secret, server.arg("mqsec").c_str()); 
         // save end
         server.send(200, "text/html", BackURLSystemSettings);
         Set_Syslog_From_Settings();
@@ -426,6 +451,7 @@
         dht.begin();
       }
       IO_init_ports();
+      mqtt_init();
       // nastavim uro
 //      setSyncProvider(getNtpTime);
 //      setSyncInterval(300); //interval v sekundah
@@ -449,6 +475,7 @@
       http_post_client();
       domoticz_update_client();
       IO_set_pin_to_low_after_sometime();
+      mqtt_loop();
       yield();
       if (millis() - previousMillis > 2000) {
         previousMillis = millis();
@@ -459,6 +486,7 @@
         BME280_read_data();
         MAX6675_read_data();
         Ultrasonic_read_data();
+        mqtt_send_data();
       }
     }
 
@@ -588,7 +616,7 @@
         SETTINGS.MAX6675_num_configured = 0;
       }
     }
-    
+   
     void ConnectToWifi() {
       sendUdpSyslog(" INFO: WiFi connecting ...");
       WiFi.hostname(SETTINGS.hostname); 
@@ -628,7 +656,7 @@
         Serial.print("Connected to SSID: ");
         Serial.println(SETTINGS.ssid);
         Serial.print("IP address: ");
-        Serial.println(WiFi.localIP());
+        Serial.println(WiFi.localIP());        
       }
     }
 
@@ -678,23 +706,23 @@
     }
 
     void sendUdpSyslog(String msgtosend) {
-      sendTcpSyslog(msgtosend);
+      //sendTcpSyslog(msgtosend); // TCP syslog
       return;
-//      if (SETTINGS.domoticz_update_enabled) { // send syslog to domoticz if enabled
-//        String url = "/json.htm?type=command&param=addlogmessage&message=";
-//        url += urlencode(msgtosend);
-//        domoticz_update(url);
-//      }
-//      if (SETTINGS.syslog[0] != '\0') { // preverim ali syslog IP nastavljen
-//        unsigned int msg_length = msgtosend.length();
-//        byte* p = (byte*)malloc(msg_length);
-//        memcpy(p, (char*) msgtosend.c_str(), msg_length);
-//        udp.beginPacket(syslogServer, 514);
-//        udp.write(SETTINGS.hostname);
-//        udp.write(p, msg_length);
-//        udp.endPacket();
-//        free(p);
-//      }
+      if (SETTINGS.domoticz_update_enabled) { // send syslog to domoticz if enabled
+        String url = "/json.htm?type=command&param=addlogmessage&message=";
+        url += urlencode(msgtosend);
+        domoticz_update(url);
+      }
+      if (SETTINGS.syslog[0] != '\0') { // preverim ali syslog IP nastavljen
+        unsigned int msg_length = msgtosend.length();
+        byte* p = (byte*)malloc(msg_length);
+        memcpy(p, (char*) msgtosend.c_str(), msg_length);
+        udp.beginPacket(syslogServer, 514);
+        udp.write(SETTINGS.hostname);
+        udp.write(p, msg_length);
+        udp.endPacket();
+        free(p);
+      }
     }
     
     void Set_Syslog_From_Settings() {
@@ -1248,6 +1276,20 @@
         html += "<tr><td>voltage idx:<input name='domvolt' value='" + String(SETTINGS.domoticz_idx_voltage) + "' maxlength='6' type='text' size='6'/>, ";
         html += "uptime idx:<input name='domtime' value='" + String(SETTINGS.domoticz_idx_uptime) + "' maxlength='6' type='text' size='6'/>, ";
         html += "wifi idx:<input name='domwifi' value='" + String(SETTINGS.domoticz_idx_wifi) + "' maxlength='6' type='text' size='6'/>";
+        html += "</td><tr></table>";
+        server.sendContent(html);
+        delay(10);
+        yield();
+        html = ""; // ne brisi
+        html += "<table><tr><th>MQTT client</th></tr>";
+        html += "</td><td>broker:<input name='mqbr' value='" + String(SETTINGS.mqtt_server) + "' maxlength='100' type='text' size='50'/>, ";
+        if (SETTINGS.mqtt_server_enabled) {
+          html += "<input type='checkbox' name='mqen' value='1' checked/>enabled, ";
+        } else {
+          html += "<input type='checkbox' name='mqen' value='1'/>enabled, "; 
+        }
+        html += "</td></tr><tr><td> mqtt_id:<b>" + String(SETTINGS.hostname) + "</b>, username:<input name='mqkey' value='" + String(SETTINGS.mqtt_key) + "' maxlength='25' type='text' size='15'/>, ";
+        html += "password:<input name='mqsec' value='" + String(SETTINGS.mqtt_secret) + "' maxlength='25' type='text' type='password' size='15'/></td></tr>";
         html += "</td><tr></table>";
         server.sendContent(html);
         delay(10);
@@ -1878,13 +1920,135 @@
       }
     }
 
-
    void http_Ultrasonic_remove_pin(void) {
       if (SETTINGS.Ultrasonic_num_configured > 0) {
         SETTINGS.Ultrasonic_num_configured--; 
       }
       String html = BackURLSystemSettings;
       server.send(200, "text/html", html);      
+    }
+
+
+    void mqtt_init() {
+      if (SETTINGS.mqtt_server_enabled) {
+        // Note: Local domain names (e.g. "Computer.local" on OSX) are not supported by Arduino.
+        // You need to set the IP address directly.
+        client.begin(SETTINGS.mqtt_server, net);
+        client.onMessage(mqtt_receive_data);
+        mqtt_connect();
+      }
+    }
+
+    void mqtt_connect() {
+      if (!client.connect(SETTINGS.hostname, SETTINGS.mqtt_key ,SETTINGS.mqtt_secret)) {
+        if (millis() - previousMQTTReconnect > 3000) {
+          previousMQTTReconnect = millis();
+          yield();
+          client.connect(SETTINGS.hostname);
+          Serial.print("mqtt-connecting...");
+        }
+      }
+      else {
+        for(int n = 0; n < SETTINGS.IO_num_configured; n++) { // narocim se na IO porte!!!
+          client.subscribe(SETTINGS.IO_ident[n]);
+        }
+      }
+      
+    //-------------
+//      Serial.print("\nconnecting...");
+//      while (!client.connect("arduino", "try", "try")) {
+//        Serial.print(".");
+//        delay(1000);
+//      }
+//      Serial.println("\nconnected!");
+    }
+
+    void mqtt_loop() {
+      if (SETTINGS.mqtt_server_enabled) {
+        client.loop();
+        delay(10);  // <- fixes some issues with WiFi stability
+        if (!client.connected()) {
+          mqtt_connect();
+        }
+      }
+    }
+    
+    void mqtt_receive_data(String &topic, String &payload) {
+      //Serial.println("incoming: " + topic + " - " + payload);
+      for(int n = 0; n < SETTINGS.IO_num_configured; n++) {
+        if (SETTINGS.IO_mode[n] > 3) { // only OUTPUT ports
+          if (topic == String(SETTINGS.IO_ident[n])) {
+            if (SETTINGS.IO_mode[n] == 5 || SETTINGS.IO_mode[n] == 6) {
+              previousIOmillis[n] = millis(); //PUSH button activation
+            }
+            if (payload.toInt() == 1 ) { 
+              digitalWrite(SETTINGS.IO_pin[n], true);
+            }
+            if (payload.toInt() == 0 ) { 
+              digitalWrite(SETTINGS.IO_pin[n], false);
+            }          
+          }
+        }
+      }
+    }
+
+    void mqtt_send_data() {
+      if (SETTINGS.mqtt_server_enabled) {
+        for (int n = 0; n < SETTINGS.IO_num_configured; n++) {
+          if (SETTINGS.IO_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
+            char myfloat_in_Char[8];
+            String MyTopic = SETTINGS.IO_ident[n] + String("-state");
+            dtostrf(digitalRead(SETTINGS.IO_pin[n]), 6, 2, myfloat_in_Char); 
+            client.publish(MyTopic.c_str(), myfloat_in_Char);
+          }
+        }
+        if (SETTINGS.DS18B20_pin != Not_used_pin_number) { // ce je pin=100 potem je disabled
+          for (int n = 0; n < SETTINGS.DS18B20_num_configured; n++) {
+            char myfloat_in_Char[8];
+            dtostrf(DS18B20_All_Sensor_Values[n], 6, 2, myfloat_in_Char); 
+            client.publish(SETTINGS.DS18B20_ident[n], myfloat_in_Char);
+          }
+        }
+        for (int n = 0; n < SETTINGS.DHT_num_configured; n++) {
+          if (SETTINGS.DHT_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
+            char myfloat_in_Char[8];
+            String MyTopic = SETTINGS.DHT_ident[n] + String("-temperature");
+            dtostrf(DHT_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char); 
+            client.publish(MyTopic.c_str(), myfloat_in_Char);
+            MyTopic = SETTINGS.DHT_ident[n] + String("-humidity");
+            dtostrf(DHT_All_Sensor_Values_Hum[n], 6, 2, myfloat_in_Char); 
+            client.publish(MyTopic.c_str(), myfloat_in_Char);
+          }
+        }
+        for (int n = 0; n < SETTINGS.BME280_num_configured; n++) {
+          if (SETTINGS.BME280_pin_sda[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
+            char myfloat_in_Char[8];
+            dtostrf(BME280_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char);
+            String MyTopic = SETTINGS.BME280_ident[n] + String("-temperature");
+            client.publish(MyTopic.c_str(), myfloat_in_Char);
+            dtostrf(BME280_All_Sensor_Values_Hum[n], 6, 2, myfloat_in_Char);
+            MyTopic = SETTINGS.BME280_ident[n] + String("-humidity"); 
+            client.publish(MyTopic.c_str(), myfloat_in_Char);
+            dtostrf(BME280_All_Sensor_Values_Press[n], 6, 2, myfloat_in_Char);
+            MyTopic = SETTINGS.BME280_ident[n] + String("-pressure");
+            client.publish(MyTopic.c_str(), myfloat_in_Char);
+          }
+        }
+        for (int n = 0; n < SETTINGS.MAX6675_num_configured; n++) {
+          if (SETTINGS.MAX6675_pin_clk[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
+            char myfloat_in_Char[8];
+            dtostrf(MAX6675_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char);
+            client.publish(SETTINGS.MAX6675_ident[n], myfloat_in_Char);
+          }
+        }
+        for (int n = 0; n < SETTINGS.Ultrasonic_num_configured; n++) {
+          if (SETTINGS.Ultrasonic_pin_trigger[n] != Not_used_pin_number) {
+            char myfloat_in_Char[8];
+            dtostrf(Ultrasonic_All_Sensor_Values_Distance[n], 6, 2, myfloat_in_Char);
+            client.publish(SETTINGS.Ultrasonic_ident[n], myfloat_in_Char);
+          }
+        }
+      }
     }
 
     String css_string() {
