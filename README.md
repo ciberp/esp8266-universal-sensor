@@ -7,6 +7,8 @@ or pulled from it. Data can be periodically pushed:
  - or via Simple http post   
 Or pulled via http as json data.
 
+Sensors data can be subscribed through MQTT protocol to mqtt broker/server. Output ports can be controlled via MQTT publish.
+
 Logging is also supported as syslog using TCP.
 
 Currently supported sensors: DS18B20, DHT11, DHT22, DHT21, AM2302, BME280, K-type with MAX6675, ultrasonic HC-SR04. I/O pins as
