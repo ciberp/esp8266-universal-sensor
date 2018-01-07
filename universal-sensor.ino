@@ -9,11 +9,201 @@
     #include <Wire.h>
     #include "DHT.h"
     #include <WiFiUdp.h>
-//    #include <TimeLib.h>
-//    #include <Timezone.h>
+    #include <ntp.h>
+    #include <Time.h>
     #include <ESP8266HTTPClient.h>
     #include <NewPing.h>
     #include <MQTTClient.h>
+    #include "EspSaveCrash.h"
+
+    static const char CSS[] PROGMEM =
+    "<style>"
+    "@import url(http://fonts.googleapis.com/css?family=Roboto:400,500,700,300,100);"
+    "html {"
+    "font-family: \"Roboto\", helvetica, arial, sans-serif;"
+    "text-rendering: optimizeLegibility;"
+    "font-weight: 400 !important;"
+    "font-size: 100% !important;"
+    "}"
+    ".f9{"
+    "max-width: 95%;"
+    "background: #FAFAFA;"
+    "padding: 10px;"
+    "margin: 10px auto;"
+    "box-shadow: 1px 1px 25px rgba(0, 0, 0, 0.35);"
+    "border-radius: 10px;"
+    "border: 3px solid #305A72;"
+    "}"
+    ".set a:link, a:visited {"
+    "position: absolute;"
+    "left: 96%;"
+    "top: 2%;"
+    "font-size: 150%;"
+    "text-decoration: none;"
+    "color: #305A72;"
+    "}"
+    ".f9 ul{"
+    "padding:0;"
+    "margin:0;"
+    "list-style:none;"
+    "}"
+    ".f9 ul li{"
+    "display: block;"
+    "margin-bottom: 10px;"
+    "min-height: 35px;"
+    "}"
+    ".f9 ul li  .field-style{"
+    "box-sizing: border-box;"
+    "-webkit-box-sizing: border-box;"
+    "-moz-box-sizing: border-box;"
+    "padding: 8px;"
+    "outline: none;"
+    "border: 1px solid #B0CFE0;"
+    "}.f9 ul li  .field-style:focus{"
+    "box-shadow: 0 0 5px #B0CFE0;"
+    "border:1px solid #B0CFE0;"
+    "}"
+    ".f9 ul li .field-full{"
+    "width: 100%;"
+    "}"
+    ".f9 ul li .field-split{"
+    "font-size: 100%;"
+    "}"
+    ".f9 ul li input.align-left{"
+    "float:left;"
+    "}"
+    ".f9 ul li input.align-right{"
+    "float:right;"
+    "}"
+    ".f9 ul li textarea{"
+    "width: 100%;"
+    "height: 100px;"
+    "}"
+    ".g {"
+    "-moz-box-shadow: inset 0px 1px 0px 0px #3985B1;"
+    "-webkit-box-shadow: inset 0px 1px 0px 0px #3985B1;"
+    "box-shadow: inset 0px 1px 0px 0px #3985B1;"
+    "background-color: #216288;"
+    "border: 1px solid #17445E;"
+    "display: inline-block;"
+    "cursor: pointer;"
+    "color: #FFFFFF;"
+    "padding: 8px 18px;"
+    "text-decoration: none;"
+    "font: 12px Arial, Helvetica, sans-serif;"
+    "width: 33%;"
+    "height: 8%;"
+    "margin: 2px;"
+    "}"
+    "#rtdiv {"
+    "width: 100%;"
+    "}"
+    ".cloud {"
+    "background: #F1F1F1;"
+    "border-radius: 0.4em;"
+    "-moz-border-radius: 0.4em;"
+    "-webkit-border-radius: 0.4em;"
+    "color: #333;"
+    "display: inline-block;"
+    "margin-right: 5px;"
+    "text-align: center;"
+    "margin-bottom: 10px;"
+    "border:1px solid #B0CFE0;"
+    "padding: 3px 3px;"
+    "min-width: 10.1%; "
+    "}"
+    ".f9 ul li input[type=\"submit\"], {"
+    "-moz-box-shadow: inset 0px 1px 0px 0px #3985B1;"
+    "-webkit-box-shadow: inset 0px 1px 0px 0px #3985B1;"
+    "box-shadow: inset 0px 1px 0px 0px #3985B1;"
+    "background-color: #216288;"
+    "border: 1px solid #17445E;"
+    "display: inline-block;"
+    "cursor: pointer;"
+    "color: #FFFFFF;"
+    "padding: 8px 18px;"
+    "text-decoration: none;"
+    "font: 12px Arial, Helvetica, sans-serif;"
+    "font-size: 250% !important;"
+    "}"
+    ".f9 ul li input[type=\"button\"]:hover,"
+    ".f9 ul li input[type=\"submit\"]:hover {"
+    "background: linear-gradient(to bottom, #2D77A2 5%, #337DA8 100%);"
+    "background-color: #28739E;"
+    "}"
+    "input[type=\"text\"], select, .d {"
+    "font-size: 100% !important;"
+    "}"
+    "table {"
+    "border:1px solid #B0CFE0;"
+    "color: #333;"
+    "width: 100%;"
+    "margin-bottom: 10px;"
+    "font-size: 100% !important;"
+    "}"
+    "td, th {"
+    "border: 1px solid transparent;"
+    "height: 8%; "
+    "}"
+    "th {"
+    "font-weight: bold;"
+    "}"
+    "td {"
+    "background: #FAFAFA;"
+    "text-align: center;"
+    "}"
+    "th {"
+    "background: #DFDFDF;"
+    "font-weight: bold;"
+    "}"
+    "td {  "
+    "background: #FAFAFA;"
+    "text-align: center;"
+    "}"
+    "@media screen and (max-width: 999px) {"
+    "html {"
+    "font-size: 250% !important;"
+    "}"
+    ".f9 ul li .field-split{"
+    "font-size: 250% !important;"
+    "}"
+    ".g {"
+    "font-size: 66% !important;"
+    "width: 32.5% !important;"
+    "height: 150px !important;"
+    "}"
+    ".cloud {"
+    "min-width: 31.8% !important; "
+    "}"
+    "table {"
+    "font-size: 40% !important;"
+    "}"
+    "}"
+    "</style>";
+
+    //static const char static_html_handle_show[] PROGMEM =
+    String  static_html_handle_show =
+    "</head><body class=\"f9\">"
+    "<script type=\"text/javascript\">function loadContent(){var xmlhttp;if (window.XMLHttpRequest){xmlhttp = new XMLHttpRequest();}xmlhttp.onreadystatechange = function(){\n"
+    "if (xmlhttp.readyState == XMLHttpRequest.DONE ){if(xmlhttp.status == 200){document.getElementById(\"shdiv\").innerHTML = xmlhttp.responseText;\n"
+    "setTimeout(loadContent, 200);}}}\n"
+    "xmlhttp.open(\"GET\", \"/values\", true); xmlhttp.send(); } loadContent(); </script>\n"
+    "<div id=\"shdiv\">Checking ...</div><br>"
+    "<a href=\"/\"><button class=\"g\">NAZAJ</button></a>"
+    "</body></html>\n";
+
+    //static const char static_html_handle_root[] PROGMEM =
+    String static_html_handle_root =
+    "</head><body class=\"f9\">"
+    "<script type=\"text/javascript\">function loadContent(){var xmlhttp;if (window.XMLHttpRequest){xmlhttp = new XMLHttpRequest();}xmlhttp.onreadystatechange = function(){\n"
+    "if (xmlhttp.readyState == XMLHttpRequest.DONE ){if(xmlhttp.status == 200){document.getElementById(\"rtdiv\").innerHTML = xmlhttp.responseText;\n"
+    "setTimeout(loadContent, 200);}}}\n"
+    "xmlhttp.open(\"GET\", \"/values\", true); xmlhttp.send(); } loadContent(); </script>\n"
+    "<span id=\"rtdiv\">Checking ...</span><br>";
+
+
+    String data_collector_type_1 = "influxdb_tcp";
+    String data_collector_type_2 = "carbon_udp";
     
 //        REASON_DEFAULT_RST      = 0,   /* normal startup by power on */
 //        REASON_WDT_RST         = 1,   /* hardware watch dog reset */
@@ -27,8 +217,12 @@
     unsigned int localPort = 2390;
     // default IP, povozijo ga nastavitve iz EEPROM-a
     IPAddress syslogServer(0, 0, 0, 0);
-    int LastSyslogMsgID[10];
-    String Version = "20171214";
+    String Version = "20180107";
+
+    // ntp
+    time_t getNTPtime(void);
+    NTP NTPclient;
+    //#define GMT +0 //timezone
         
     ADC_MODE(ADC_VCC);
     boolean TurnOff60SoftAP;
@@ -40,7 +234,7 @@
 
     // Tell it where to store your config data in EEPROM
     #define EEPROM_START 0     // začetek  
-    #define EEPROM_SIZE  4096  // velikost za EPROM
+    #define EEPROM_SIZE  3071  // velikost za EPROM
 
     // Sizes
     #define StringLenghtNormal 25
@@ -52,9 +246,11 @@
     #define MAX6675_Max_Sensors 5
     #define IO_Max 10
     #define Ultrasonic_Max_Sensors 5
+    #define data_collector_Max_Clients 5
     
-    #define Minimum_update_interval 5 // http post & domoticz update
+    #define Minimum_update_interval 5 // http post & domoticz update & MQTT & influxDB
     #define Not_used_pin_number 100
+    #define LoadDefaultNumber 2018
     
     typedef struct {
       // wifi
@@ -65,6 +261,7 @@
       char css_link[StringLenghtURL];
       char syslog[StringLenghtIP];
       char NTP_hostname[StringLenghtNormal];
+      int  timezone_GMT;
       int defaults;
       char hostname[StringLenghtNormal];
       bool DS18B20_enabled;
@@ -90,9 +287,6 @@
       int MAX6675_pin_do[MAX6675_Max_Sensors];
       char MAX6675_ident[MAX6675_Max_Sensors][StringLenghtNormal];      // support up to 5 sensors names!!!
       int MAX6675_domoticz_idx[MAX6675_Max_Sensors];
-      boolean http_post_enabled;                 
-      int http_post_interval;
-      char http_post_url[StringLenghtURL];
       boolean domoticz_update_enabled;                 
       int domoticz_update_interval;
       char domoticz_ip[StringLenghtIP];
@@ -113,10 +307,20 @@
       char Ultrasonic_ident[Ultrasonic_Max_Sensors][StringLenghtNormal];      // support up to 5 sensors names!!!
       int Ultrasonic_domoticz_idx[Ultrasonic_Max_Sensors];
       int Ultrasonic_offset[Ultrasonic_Max_Sensors];
+      boolean mqtt_enabled; 
       char mqtt_server[StringLenghtURL];
-      boolean mqtt_server_enabled;
+      int mqtt_port;
+      int mqtt_interval;
       char mqtt_key[StringLenghtNormal];
       char mqtt_secret[StringLenghtNormal];
+      int data_collector_num_configured;
+      char data_collector_host[data_collector_Max_Clients][StringLenghtNormal];
+      int data_collector_port[data_collector_Max_Clients];
+      char data_collector_db_name[data_collector_Max_Clients][StringLenghtNormal];
+      char data_collector_db_username[data_collector_Max_Clients][StringLenghtNormal];
+      char data_collector_db_password[data_collector_Max_Clients][StringLenghtNormal];
+      int data_collector_push_interval[data_collector_Max_Clients];
+      int data_collector_type[data_collector_Max_Clients];
       
     } ObjectSettings;
     ObjectSettings SETTINGS;
@@ -132,8 +336,10 @@
     unsigned long previousHttpPost = 0;
     unsigned long previousDomoticzUpdate = 0;
     unsigned long previousMQTTReconnect = 0;
+    unsigned long previousMQTTInterval = 0;
+    unsigned long previousNTPReconnect = 0;
+    unsigned long previousDataCollector[data_collector_Max_Clients];
 
- 
     // DS18B20 Temperature sensors
     OneWire oneWire(Not_used_pin_number); // za default pin nastavim 100, in ga potem prenastavim
     DallasTemperature DS18B20(&oneWire);
@@ -141,14 +347,13 @@
     float DS18B20_All_Sensor_Values[DS18B20_Max_Sensors];      // support up to 30 sensors!!!
     int DS18B20_Count = 0;
 
-
     // DHT Temperature & humidity sensors
-    float DHT_All_Sensor_Values_Hum[DHT_Max_Sensors], DHT_All_Sensor_Values_Temp[DHT_Max_Sensors];
+    float DHT_All_Sensor_Values_Hum[DHT_Max_Sensors], DHT_All_Sensor_Values_Temp[DHT_Max_Sensors], DHT_All_Sensor_Values_Heat[DHT_Max_Sensors], DHT_All_Sensor_Values_Dew[DHT_Max_Sensors];
     DHT dht(101, 22); // za default pin nastavim 101 in sensor 22, in ga potem prenastavim
 
     // BME280 
     BME280I2C BME280;
-    float BME280_All_Sensor_Values_Temp[BME280_Max_Sensors], BME280_All_Sensor_Values_Hum[BME280_Max_Sensors], BME280_All_Sensor_Values_Press[BME280_Max_Sensors], BME280_All_Sensor_Values_Dew[BME280_Max_Sensors], BME280_All_Sensor_Values_Alt[BME280_Max_Sensors];
+    float BME280_All_Sensor_Values_Temp[BME280_Max_Sensors], BME280_All_Sensor_Values_Hum[BME280_Max_Sensors], BME280_All_Sensor_Values_Press[BME280_Max_Sensors], BME280_All_Sensor_Values_Heat[BME280_Max_Sensors], BME280_All_Sensor_Values_Dew[BME280_Max_Sensors], BME280_All_Sensor_Values_Alt[BME280_Max_Sensors];
 
     // MAX6675
     float MAX6675_All_Sensor_Values_Temp[MAX6675_Max_Sensors];
@@ -163,11 +368,11 @@
     
 
     //mqtt
-    WiFiClient net;
+    WiFiClient MQTT_Client;        // http
     MQTTClient client;
-    IPAddress mqtt_broker(172, 22, 0, 22);
-    boolean MQTT_Connected;
-    
+    WiFiClient influxdb_client;
+    WiFiClient redis_client;
+    WiFiClient domoticz_client;    
     // pins, 
     // ! pazi ob boot-u, normal mode: D8=LOW, D4=HIGH, D3=HIGH  
     // D0  = 16  = PWM Motor 3x
@@ -189,29 +394,16 @@
     unsigned long secs = 0;
 
 
-//    // NTP section
-//    const int NTP_PACKET_SIZE = 48; // NTP time stamp is in the first 48 bytes of the message
-//    byte packetBuffer[ NTP_PACKET_SIZE]; //buffer to hold incoming and outgoing packets
-//    time_t getNtpTime();
-//
-//    // TIMEZONE
-//    //Central European Time (Frankfurt, Paris)
-//    TimeChangeRule CEST = {"CEST", Last, Sun, Mar, 2, 120};     //Central European Summer Time
-//    TimeChangeRule CET = {"CET ", Last, Sun, Oct, 3, 60};       //Central European Standard Time
-//    Timezone CE(CEST, CET);
-//    //TimeChangeRule *tcr;        //pointer to the time change rule, use to get the TZ abbrev
-//    //time_t utc;
 
     void setup(void)
     {
       Serial.begin(115200);
-      //EEPROM.begin(EEPROM_SIZE);
       loadConfig();
-      if (SETTINGS.defaults != 2017) {
+      if (SETTINGS.defaults != LoadDefaultNumber) {
         handle_load_defaults();
       }
       ConnectToWifi();
-      //udp.begin(localPort);
+      udp.begin(localPort);
       server.on("/espupdate", HTTP_GET, [](){
         //server.sendHeader("Connection", "close");
         //server.sendHeader("Access-Control-Allow-Origin", "*");
@@ -230,31 +422,35 @@
           //Serial.printf("Update: %s\n", upload.filename.c_str());
           String TempString = " UPDATE: ESPupdate, uploading file ";
           TempString += upload.filename.c_str();
-          sendUdpSyslog(TempString);
+          SendLog(TempString);
           uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
           if(!Update.begin(maxSketchSpace)){//start with max available size
             //Update.printError(Serial);
-            sendUdpSyslog(" UPDATE: Error no space...");
+            SendLog(" UPDATE: Error no space...");
           }
         } else if(upload.status == UPLOAD_FILE_WRITE){
           if(Update.write(upload.buf, upload.currentSize) != upload.currentSize){
             //Update.printError(Serial);
-            sendUdpSyslog(" UPDATE: Error upload file write...");
+            SendLog(" UPDATE: Error upload file write...");
           }
         } else if(upload.status == UPLOAD_FILE_END){
           if(Update.end(true)){ //true to set the size to the current progress
             //Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
-            sendUdpSyslog(" UPDATE: Success, Rebooting... ");
+            SendLog(" UPDATE: Success, Rebooting... ");
           } else {
             //Update.printError(Serial);
-            sendUdpSyslog(" UPDATE: Error upload file end...");
+            SendLog(" UPDATE: Error upload file end...");
           }
           //Serial.setDebugOutput(false);
         }
         yield();
       });
       server.begin();
-      server.on("/", handle_root);    
+      server.on("/", handle_root);
+      server.on("/scan", http_WiFi_Scan);
+      server.on("/clearcrash", http_clear_crash_info);
+      server.on("/crashinfo", http_crash_info);
+      server.on("/ntpupdate", init_ntp);
       server.on("/ultadd", []() {
         if (SETTINGS.Ultrasonic_num_configured < 0 || SETTINGS.Ultrasonic_num_configured > Ultrasonic_Max_Sensors) {
           SETTINGS.Ultrasonic_num_configured = 0;
@@ -270,6 +466,7 @@
         }
         server.send(200, "text/html", BackURLSystemSettings);
       });
+      yield();
       server.on("/ultrem", http_Ultrasonic_remove_pin);
       server.on("/ioadd", []() {
         if (SETTINGS.IO_num_configured < 0 || SETTINGS.IO_num_configured > IO_Max) {
@@ -286,6 +483,7 @@
         }
         server.send(200, "text/html", BackURLSystemSettings);
       });
+      yield();
       server.on("/iorem", http_IO_remove_pin);
       server.on("/iocmd", []() {
         for (int i = 0; i < server.args(); i++) {
@@ -303,6 +501,7 @@
         }
         server.send(200, "text/html", BackURLRoot);
       });
+      yield();
       server.on("/dsset", []() {
         SETTINGS.DS18B20_pin = server.arg("dspin").toInt();
         DS18B20_begin();
@@ -323,6 +522,7 @@
         }
         server.send(200, "text/html", BackURLSystemSettings);
       });
+      yield();
       server.on("/dsrem", http_ds18b20_remove_sensor);
       server.on("/dhtadd", []() {
         if (SETTINGS.DHT_num_configured < 0 || SETTINGS.DHT_num_configured > DHT_Max_Sensors) {
@@ -337,6 +537,7 @@
         }
         server.send(200, "text/html", BackURLSystemSettings);
       });
+      yield();
       server.on("/dhtrem", http_dht_remove_sensor);
       server.on("/bmeadd", []() {
         if (SETTINGS.BME280_num_configured < 0 || SETTINGS.BME280_num_configured > BME280_Max_Sensors) {
@@ -351,6 +552,7 @@
         }
         server.send(200, "text/html", BackURLSystemSettings);
       });
+      yield();
       server.on("/bmerem", http_bme_remove_sensor);
       server.on("/maxadd", []() {
         if (SETTINGS.MAX6675_num_configured < 0 || SETTINGS.MAX6675_num_configured > MAX6675_Max_Sensors) {
@@ -366,20 +568,39 @@
         }
         server.send(200, "text/html", BackURLSystemSettings);
       });
+      yield();
+      server.on("/flxadd", []() {
+        if (SETTINGS.data_collector_num_configured < 0 || SETTINGS.data_collector_num_configured > data_collector_Max_Clients) {
+          SETTINGS.data_collector_num_configured = 0;
+        }
+        if (SETTINGS.data_collector_num_configured <= data_collector_Max_Clients) {
+          strcpy (SETTINGS.data_collector_host[SETTINGS.data_collector_num_configured], server.arg("flxho").c_str());
+          SETTINGS.data_collector_port[SETTINGS.data_collector_num_configured] = server.arg("flxpo").toInt();
+          strcpy (SETTINGS.data_collector_db_name[SETTINGS.data_collector_num_configured], server.arg("flxdn").c_str());
+          strcpy (SETTINGS.data_collector_db_username[SETTINGS.data_collector_num_configured], server.arg("flxdu").c_str());
+          strcpy (SETTINGS.data_collector_db_password[SETTINGS.data_collector_num_configured], server.arg("flxdp").c_str());
+          if (server.arg("flxin").toInt() < Minimum_update_interval) {
+            SETTINGS.data_collector_push_interval[SETTINGS.data_collector_num_configured] = Minimum_update_interval;
+          }
+          else {
+            SETTINGS.data_collector_push_interval[SETTINGS.data_collector_num_configured] = server.arg("flxin").toInt(); 
+          }          
+          SETTINGS.data_collector_type[SETTINGS.data_collector_num_configured] = server.arg("flxty").toInt();
+          SETTINGS.data_collector_num_configured++;
+        }
+        server.send(200, "text/html", BackURLSystemSettings);
+      });
+      yield();
+      server.on("/flxrem", http_data_collector_remove_client);
       server.on("/maxrem", http_max_remove_sensor);
-      //server.on("/sumt", http_daylight_summer_time);
-      //server.on("/wint", http_daylight_winter_time);
-      //server.on("/ntpu", http_force_ntp_update);
       server.on("/show", handle_show);
-      server.on("/info",esp_info);
       server.on("/json",handle_json);
-      server.on("/djson",handle_dict_json);
       server.on("/default",handle_load_defaults);
       server.on("/settings",handle_Settings);
       server.on("/values",http_values);
       server.on("/reboot",handle_reboot);
-      server.on("/savee",saveConfig);
-      server.on("/savesys", []() {
+      server.on("/save",saveConfig);
+      server.on("/commit", []() {
         strcpy (SETTINGS.ssid, server.arg("ssid").c_str());        
         strcpy (SETTINGS.password, server.arg("pass").c_str());
         strcpy (SETTINGS.ap_ssid, server.arg("ap_ssid").c_str());        
@@ -387,21 +608,25 @@
         strcpy (SETTINGS.css_link, server.arg("css").c_str());
         strcpy (SETTINGS.syslog, server.arg("syslog").c_str());
         strcpy (SETTINGS.NTP_hostname, server.arg("ntp").c_str());
+        SETTINGS.timezone_GMT = server.arg("gmt").toInt();  
         strcpy (SETTINGS.hostname, server.arg("hostname").c_str());
-        // http post
-        if (server.arg("hen").toInt() == 1) {
-          SETTINGS.http_post_enabled = true;        
+        // mqtt
+        if (server.arg("mqena").toInt() == 1) {
+          SETTINGS.mqtt_enabled = true;        
         }
         else {
-          SETTINGS.http_post_enabled = false;
+          SETTINGS.mqtt_enabled = false;
         }
-        strcpy (SETTINGS.http_post_url, server.arg("hurl").c_str());
-        if (server.arg("hint").toInt() < Minimum_update_interval) {
-          SETTINGS.http_post_interval = Minimum_update_interval;
+        strcpy (SETTINGS.mqtt_server, server.arg("mqbr").c_str());
+        SETTINGS.mqtt_port = server.arg("mqprt").toInt();
+        if (server.arg("mqint").toInt() < Minimum_update_interval) {
+          SETTINGS.mqtt_interval = Minimum_update_interval;
         }
         else {
-          SETTINGS.http_post_interval = server.arg("hint").toInt();
+          SETTINGS.mqtt_interval = server.arg("mqint").toInt(); 
         }
+        strcpy (SETTINGS.mqtt_key, server.arg("mqkey").c_str());
+        strcpy (SETTINGS.mqtt_secret, server.arg("mqsec").c_str());
         // domoticz update
         if (server.arg("domen").toInt() == 1) {
           SETTINGS.domoticz_update_enabled = true;        
@@ -420,25 +645,14 @@
         SETTINGS.domoticz_idx_voltage = server.arg("domvolt").toInt();
         SETTINGS.domoticz_idx_uptime = server.arg("domtime").toInt();
         SETTINGS.domoticz_idx_wifi = server.arg("domwifi").toInt();
-        // MQTT settings
-        if (server.arg("mqen").toInt() == 1) {
-          SETTINGS.mqtt_server_enabled = true;
-          mqtt_init();
-          mqtt_connect(); 
-        }
-        else {
-          SETTINGS.mqtt_server_enabled = false;
-        }
-        strcpy (SETTINGS.mqtt_server, server.arg("mqbr").c_str());
-        strcpy (SETTINGS.mqtt_key, server.arg("mqkey").c_str());
-        strcpy (SETTINGS.mqtt_secret, server.arg("mqsec").c_str()); 
-        // save end
+        // end
         server.send(200, "text/html", BackURLSystemSettings);
         Set_Syslog_From_Settings();
         IO_init_ports();
-        //Shranim spremembe
+        init_ntp();
         saveConfig();
         });
+      yield();
       server.on("/enapsta",handle_enable_ap_sta);
       server.on("/disap",handle_disable_ap);
       server.on("/recon",ConnectToWifi);    
@@ -452,10 +666,7 @@
       }
       IO_init_ports();
       mqtt_init();
-      // nastavim uro
-//      setSyncProvider(getNtpTime);
-//      setSyncInterval(300); //interval v sekundah
-//      time_t getNtpTime();   
+      init_ntp();
       String BootText;
       BootText += " BOOT: Time " + String(millis()) + "ms";
       BootText += " Firmware ver.: " + String(Version);
@@ -465,28 +676,37 @@
       BootText += " CPUFreqMhz: " + String(ESP.getCpuFreqMHz());
       BootText += " ResetInfo: " + String(ESP.getResetInfo());
       //BootText += " DS18B20 - Found " + String(DS18B20_Count) + " devices.";
-//      BootText += " Time/Date:" + show_time() + " " + show_date();
-      sendUdpSyslog(BootText);
+      BootText += " Time/Date:" + show_time() + " " + show_date();
+      SendLog(BootText);
+      http_WiFi_Scan();
     }
 
     void loop(void) {
       // MAIN LOOP //
       server.handleClient();
-      http_post_client();
+      yield();
       domoticz_update_client();
-      IO_set_pin_to_low_after_sometime();
+      yield();
+      data_collector_send_data();
+      yield();
+      IO_set_pin_to_low_after_sometime(); 
+      yield();
       mqtt_loop();
       yield();
-      if (millis() - previousMillis > 2000) {
+      mqtt_send_data(); 
+      if (millis() - previousMillis >= 2000) {
         previousMillis = millis();
         yield();
         // tole se izvaja na 2sek
         DS18B20_read_data();
+        yield();
         DHT_read_data();
+        yield();
         BME280_read_data();
+        yield();
         MAX6675_read_data();
+        yield();
         Ultrasonic_read_data();
-        mqtt_send_data();
       }
     }
 
@@ -499,100 +719,61 @@
       return MyByte;
     }
 
-//    time_t getNtpTime() {
-//      IPAddress ntpServerIP; // NTP server's ip address
-//      while (udp.parsePacket() > 0) ; // discard any previously received packets
-//      //Serial.println("Transmit NTP Request");
-//      // get a random server from the pool
-//      WiFi.hostByName(SETTINGS.NTP_hostname, ntpServerIP);
-//      //Serial.print(ntpServerName);
-//      //Serial.print(": ");
-//      //Serial.println(ntpServerIP);
-//      sendNTPpacket(ntpServerIP);
-//      uint32_t beginWait = millis();
-//      while (millis() - beginWait < 1500) {
-//        int size = udp.parsePacket();
-//        if (size >= NTP_PACKET_SIZE) {
-//          //Serial.println("Receive NTP Response");
-//          udp.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
-//          unsigned long secsSince1900;
-//          // convert four bytes starting at location 40 to a long integer
-//          secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
-//          secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
-//          secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
-//          secsSince1900 |= (unsigned long)packetBuffer[43];
-//          //sendUdpSyslog(" INFO: NTP Response OK: " + String(secsSince1900) + ".");
-//          return CE.toLocal(secsSince1900 - 2208988800UL); // Upoštevam TIMEZONE
-//        }
-//      }
-//      //Serial.println("No NTP Response :-(");
-//      sendUdpSyslog(" ERROR: No NTP Response.");
-//      return 0; // return 0 if unable to get the time
-//    }
-//
-//    // send an NTP request to the time server at the given address
-//    unsigned long sendNTPpacket(IPAddress& address) {
-//      //Serial.println("sending NTP packet...");
-//      // set all bytes in the buffer to 0
-//      memset(packetBuffer, 0, NTP_PACKET_SIZE);
-//      // Initialize values needed to form NTP request
-//      // (see URL above for details on the packets)
-//      packetBuffer[0] = 0b11100011;   // LI, Version, Mode
-//      packetBuffer[1] = 0;     // Stratum, or type of clock
-//      packetBuffer[2] = 6;     // Polling Interval
-//      packetBuffer[3] = 0xEC;  // Peer Clock Precision
-//      // 8 bytes of zero for Root Delay & Root Dispersion
-//      packetBuffer[12]  = 49;
-//      packetBuffer[13]  = 0x4E;
-//      packetBuffer[14]  = 49;
-//      packetBuffer[15]  = 52;
-//    
-//      // all NTP fields have been given values, now
-//      // you can send a packet requesting a timestamp:
-//      udp.beginPacket(address, 123); //NTP requests are to port 123
-//      udp.write(packetBuffer, NTP_PACKET_SIZE);
-//      udp.endPacket();
-//    }
+    void init_ntp() {
+      //Serial.println("waiting for ntp");
+      SendLog(" ERROR: waiting for ntp.");
+      NTPclient.begin(SETTINGS.NTP_hostname, SETTINGS.timezone_GMT);
+      setSyncInterval(18000);
+      setSyncProvider(getNTPtime);
+      yield();
+      SendLog(" INFO: NTP init.");
+      String html = BackURLSystemSettings;
+      server.send(200, "text/html", html);
+    }
 
-//    String show_time() {
-//      String _hour, _minute, _second;
-//      if (hour() < 10) {
-//        _hour = "0" + String(hour());
-//      }
-//      else {
-//        _hour = String(hour());
-//      }
-//      if (minute() < 10) {
-//        _minute = "0" + String(minute());
-//      }
-//      else {
-//        _minute = String(minute());
-//      }
-//      if (second() < 10) {
-//        _second = "0" + String(second());
-//      }
-//      else {
-//        _second = String(second());
-//      }
-//      return _hour + ":" + _minute + ":" + _second;
-//    }
-//
-//    String show_date() {
-//      return String(day()) + "." + String(month()) + "." + String(year());
-//    }
+    time_t getNTPtime(void)
+    {
+      return NTPclient.getNtpTime();
+    }
+
+    String show_time() {
+      String _hour, _minute, _second;
+      if (hour() < 10) {
+        _hour = "0" + String(hour());
+      }
+      else {
+        _hour = String(hour());
+      }
+      if (minute() < 10) {
+        _minute = "0" + String(minute());
+      }
+      else {
+        _minute = String(minute());
+      }
+      if (second() < 10) {
+        _second = "0" + String(second());
+      }
+      else {
+        _second = String(second());
+      }
+      return _hour + ":" + _minute + ":" + _second;
+    }
+
+    String show_date() {
+      return String(day()) + "." + String(month()) + "." + String(year());
+    }
 
     void saveConfig() {
-      SETTINGS.defaults = 2017;
+      SETTINGS.defaults = LoadDefaultNumber;
       EEPROM.begin(EEPROM_SIZE);
       delay(10);
       EEPROM.put(EEPROM_START, SETTINGS);
       yield();
       EEPROM.commit();
-      //EEPROM.end();
       String html = BackURLSystemSettings;
       server.send(200, "text/html", html);
       Serial.println("Settings saved!");
-      sendUdpSyslog(" INFO: Settings saved.");
+      SendLog(" INFO: Settings saved.");
     }
     
     void loadConfig() {
@@ -601,7 +782,7 @@
       EEPROM.get(EEPROM_START, SETTINGS);
       yield();
       Set_Syslog_From_Settings();
-      sendUdpSyslog(" INFO: Settings loaded.");
+      SendLog(" INFO: Settings loaded.");
       // Check for invalid settings
       if (SETTINGS.DS18B20_num_configured > DS18B20_Max_Sensors && SETTINGS.DS18B20_num_configured < 0) {
         SETTINGS.DS18B20_num_configured = 0;
@@ -615,11 +796,92 @@
       if (SETTINGS.MAX6675_num_configured > MAX6675_Max_Sensors && SETTINGS.MAX6675_num_configured < 0) {
         SETTINGS.MAX6675_num_configured = 0;
       }
+      if (SETTINGS.IO_num_configured > IO_Max && SETTINGS.IO_num_configured < 0) {
+        SETTINGS.IO_num_configured = 0;
+      }
+      if (SETTINGS.Ultrasonic_num_configured > Ultrasonic_Max_Sensors && SETTINGS.Ultrasonic_num_configured < 0) {
+        SETTINGS.Ultrasonic_num_configured = 0;
+      }
+      if (SETTINGS.data_collector_num_configured > data_collector_Max_Clients && SETTINGS.data_collector_num_configured < 0) {
+        SETTINGS.data_collector_num_configured = 0;
+      }
     }
-   
+
+    void handle_load_defaults() {
+      // wifi
+      //strcpy (SETTINGS.ssid, "ssid-to-connect-to"); ne potrebujemo imamo dropdown
+      strcpy (SETTINGS.password, "password");
+      strcpy (SETTINGS.ap_ssid, "universal");
+      strcpy (SETTINGS.ap_password, "password");
+      strcpy (SETTINGS.css_link, "");
+      strcpy (SETTINGS.syslog, "");
+      strcpy (SETTINGS.hostname, "universal");
+      strcpy (SETTINGS.NTP_hostname, "ntp1.arnes.si");
+      SETTINGS.timezone_GMT = 1;
+      SETTINGS.DS18B20_num_configured = 0;
+      strcpy (SETTINGS.DS18B20_ident[0], "");
+      SETTINGS.DS18B20_resolution[0] = 0;
+      SETTINGS.DS18B20_domoticz_idx[0] = 0;
+      SETTINGS.DHT_num_configured = 0;
+      SETTINGS.DHT_pin[0] = 100;   
+      SETTINGS.DHT_type[0] = 0;
+      strcpy (SETTINGS.DHT_ident[0], "");
+      SETTINGS.DHT_domoticz_idx[0] = 0;
+      SETTINGS.BME280_num_configured = 0;
+      SETTINGS.BME280_pin_sda[0] = 100;
+      SETTINGS.BME280_pin_scl[0] = 100;
+      strcpy (SETTINGS.BME280_ident[0], "");
+      SETTINGS.BME280_domoticz_idx[0] = 0;
+      SETTINGS.MAX6675_num_configured = 0;
+      SETTINGS.MAX6675_pin_clk[0] = 100;
+      SETTINGS.MAX6675_pin_cs[0] = 100;
+      SETTINGS.MAX6675_pin_do[0] = 100;
+      strcpy (SETTINGS.MAX6675_ident[0], "");
+      SETTINGS.domoticz_update_enabled = false;                 
+      SETTINGS.domoticz_update_interval = 5;
+      strcpy (SETTINGS.domoticz_ip, "");
+      SETTINGS.domoticz_port = 0;
+      SETTINGS.domoticz_idx_voltage = 0;
+      SETTINGS.domoticz_idx_uptime = 0;
+      SETTINGS.domoticz_idx_wifi = 0;
+      SETTINGS.IO_num_configured = 0;
+      strcpy (SETTINGS.IO_ident[0], "");
+      SETTINGS.IO_pin[0] = 100;
+      SETTINGS.IO_mode[0] = 0;
+      SETTINGS.IO_timer[0] = 0;
+      SETTINGS.IO_domoticz_idx[0] = 0;
+      SETTINGS.Ultrasonic_num_configured = 0;
+      SETTINGS.data_collector_num_configured = 0;
+      SETTINGS.Ultrasonic_pin_trigger[0] = 100;
+      SETTINGS.Ultrasonic_pin_echo[0] = 100;
+      SETTINGS.Ultrasonic_max_distance[0] = 0;
+      strcpy (SETTINGS.Ultrasonic_ident[0], "");
+      SETTINGS.Ultrasonic_domoticz_idx[0] = 0;
+      SETTINGS.Ultrasonic_offset[0] = 0;
+      strcpy (SETTINGS.mqtt_server, "");
+      SETTINGS.mqtt_port = 1883;
+      SETTINGS.mqtt_interval = 10;
+      SETTINGS.mqtt_enabled = 0;
+      strcpy (SETTINGS.mqtt_key, "");
+      strcpy (SETTINGS.mqtt_secret, "");
+      strcpy (SETTINGS.data_collector_host[0], "");
+      SETTINGS.data_collector_port[0] = 8086;
+      strcpy (SETTINGS.data_collector_db_name[0], "db");
+      strcpy (SETTINGS.data_collector_db_username[0], "");
+      strcpy (SETTINGS.data_collector_db_password[0], "");
+      SETTINGS.data_collector_push_interval[0] = 30;
+      SETTINGS.data_collector_type[0] = 1;
+      // clear crash
+      http_clear_crash_info();
+      String html = BackURLSystemSettings;
+      server.send(200, "text/html", html);
+      Serial.println("Defaults loaded!");
+      SendLog(" INFO: Defaults loaded."); 
+    }
+    
     void ConnectToWifi() {
-      sendUdpSyslog(" INFO: WiFi connecting ...");
-      WiFi.hostname(SETTINGS.hostname); 
+      SendLog(" INFO: WiFi connecting ...");
+      WiFi.hostname(String(SETTINGS.hostname)); 
       TurnOff60SoftAP = true;
       WiFi.mode(WIFI_AP_STA); // AP & client mode
       /* You can remove the password parameter if you want the AP to be open. */
@@ -656,7 +918,7 @@
         Serial.print("Connected to SSID: ");
         Serial.println(SETTINGS.ssid);
         Serial.print("IP address: ");
-        Serial.println(WiFi.localIP());        
+        Serial.println(WiFi.localIP());       
       }
     }
 
@@ -694,40 +956,32 @@
         return encodedString;
     }
 
-    void sendTcpSyslog(String msgtosend) {
-      WiFiClient tcpClient;
-      if (tcpClient.connect(syslogServer, 514)) {     
-        tcpClient.print(msgtosend);
-      }
-      else {
-        Serial.print("Error connecting to ");
-        Serial.println(syslogServer);
-      }
+    void SendLog(String msgtosend) {
+      Serial.print("log: ");
+      Serial.println(msgtosend);
+      SendUDPSyslog(msgtosend);
+      mqtt_send_log(String(SETTINGS.hostname) + msgtosend);
     }
+    
 
-    void sendUdpSyslog(String msgtosend) {
-      //sendTcpSyslog(msgtosend); // TCP syslog
-      return;
-      if (SETTINGS.domoticz_update_enabled) { // send syslog to domoticz if enabled
-        String url = "/json.htm?type=command&param=addlogmessage&message=";
-        url += urlencode(msgtosend);
-        domoticz_update(url);
-      }
-      if (SETTINGS.syslog[0] != '\0') { // preverim ali syslog IP nastavljen
-        unsigned int msg_length = msgtosend.length();
-        byte* p = (byte*)malloc(msg_length);
-        memcpy(p, (char*) msgtosend.c_str(), msg_length);
-        udp.beginPacket(syslogServer, 514);
-        udp.write(SETTINGS.hostname);
-        udp.write(p, msg_length);
-        udp.endPacket();
-        free(p);
+    void SendUDPSyslog(String msgtosend) {
+      if (WiFi.status() == WL_CONNECTED) {
+        if (SETTINGS.syslog[0] != '\0') { // preverim ali syslog IP nastavljen
+          unsigned int msg_length = msgtosend.length();
+          byte* p = (byte*)malloc(msg_length);
+          memcpy(p, (char*) msgtosend.c_str(), msg_length);
+          udp.beginPacket(syslogServer, 514);
+          udp.write(SETTINGS.hostname);
+          udp.write(p, msg_length);
+          udp.endPacket();
+          free(p);
+        }
       }
     }
     
     void Set_Syslog_From_Settings() {
       if (syslogServer.fromString(SETTINGS.syslog)) {
-        //sendUdpSyslog(" INFO: Valid syslog IP Address");
+        //SendLog(" INFO: Valid syslog IP Address");
         int Parts[4] = {0,0,0,0};
         int Part = 0;
         for ( int i=0; i<sizeof(SETTINGS.syslog); i++ )
@@ -742,7 +996,7 @@
           Parts[Part] += c - '0';
         }
         IPAddress syslogServer( Parts[0], Parts[1], Parts[2], Parts[3] );
-      }    
+      } 
     }
 
 
@@ -783,25 +1037,25 @@
         byte i;
         byte addr[8];
         DS18B20_Count = 0;
-        Serial.print("Looking for 1-Wire devices...\n\r");
-        //sendUdpSyslog(" INFO: DS18B20 - Looking for 1-Wire devices...");
+        //Serial.print("Looking for 1-Wire devices...\n\r");
+        SendLog(" INFO: DS18B20 - Looking for 1-Wire devices...");
         while(oneWire.search(addr)) {
           //oneWire.getAddress(addr, index)
-          Serial.print("Found device:");
+          //Serial.print("Found device:");
           String TempAddress = " INFO: DS18B20 - Found device: ";
           for( i = 0; i < 8; i++) {
             DS18B20_All_Sensor_Addresses [DS18B20_Count][i] = addr[i];
             if (addr[i] < 16) {
               TempAddress += '0';
             }
-            Serial.print(addr[i], HEX);
+            //Serial.print(addr[i], HEX);
             TempAddress += String(addr[i], HEX);
-            //sendUdpSyslog(TempAddress);
+            //SendLog(TempAddress);
           }
-          Serial.println("");
+          //Serial.println("");
           if ( OneWire::crc8( addr, 7) != addr[7]) {
-              Serial.print("CRC is not valid!\n");
-              sendUdpSyslog(" ERROR: DS18B20 - CRC is not valid.");
+              //Serial.print("CRC is not valid!\n");
+              SendLog(" ERROR: DS18B20 - CRC is not valid.");
               return;
           }
           DS18B20_Count ++;
@@ -823,26 +1077,28 @@
       }
     } 
 
-    float DS18B20_check_validate(float new_temp, float old_temp, String sensor) {
+
+
+    float DS18B20_validate_reading(float new_temp, String sensor) {
       if (new_temp == -127 ){
-        sendUdpSyslog(" ERROR: DS18B20 " +  sensor + " reported -127°C.");
-        return old_temp;
+        SendLog("ERROR: DS18B20 " +  sensor + " reported -127°C.");
+        return NAN;
       }
       if (new_temp == 85 ){
-        sendUdpSyslog(" ERROR: DS18B20 " +  sensor + " reported 85°C.");
-        return old_temp;
+        SendLog("ERROR: DS18B20 " +  sensor + " reported 85°C.");
+        return NAN;
       }
       else {
         return new_temp;
       }      
     }
-    
+      
     void DS18B20_read_data () {
       // Pobiranje podatkov s senzorjev
       if (SETTINGS.DS18B20_pin != Not_used_pin_number) { // ce je pin=100 potem je disabled
         DS18B20.requestTemperatures();  
         for (int i = 0; i < DS18B20_Count; i++) {
-          DS18B20_All_Sensor_Values[i] = DS18B20_check_validate(DS18B20.getTempC(SETTINGS.DS18B20_address[i]),DS18B20_All_Sensor_Values[i], SETTINGS.DS18B20_ident[i]);
+          DS18B20_All_Sensor_Values[i] = DS18B20_validate_reading(DS18B20.getTempC(SETTINGS.DS18B20_address[i]), SETTINGS.DS18B20_ident[i]);
         }
       }
     }
@@ -879,19 +1135,37 @@
       for (int n = 0; n < SETTINGS.DHT_num_configured; n++) {
         if (SETTINGS.DHT_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
           DHT dht(SETTINGS.DHT_pin[n], SETTINGS.DHT_type[n]);
+          float dtemperature;
+          float dhumidity;
+          dtemperature = dht.readTemperature();
           yield();
-          delay(10);
-          if (isnan(dht.readHumidity()) || isnan(dht.readTemperature())) {
-            Serial.println("Failed to read from DHT sensor!");
+          dhumidity = dht.readHumidity();
+          yield();
+          DHT_All_Sensor_Values_Temp[n] = dtemperature;
+          DHT_All_Sensor_Values_Hum[n] =  dhumidity;
+          DHT_All_Sensor_Values_Heat[n] = NAN;
+          DHT_All_Sensor_Values_Dew[n] = NAN;
+          if (isnan(dtemperature) || isnan(dhumidity)) {
+            //Serial.println("Failed to read from DHT sensor!");
             String DHT_err;
             DHT_err += " ERROR: Failed to read from DHT sensor " + String(SETTINGS.DHT_ident[n]) + ", pin:" + String(SETTINGS.DHT_pin[n]) + ".";
-            sendUdpSyslog(DHT_err);
+            SendLog(DHT_err);
             return;
           }
-          DHT_All_Sensor_Values_Temp[n] = dht.readTemperature();
-          DHT_All_Sensor_Values_Hum[n] =  dht.readHumidity();
+          DHT_All_Sensor_Values_Heat[n] = dht.computeHeatIndex(dtemperature, dhumidity, false);
+          DHT_All_Sensor_Values_Dew[n] = CalculateDewPoint(dtemperature, dhumidity);
         }
       }
+    }
+
+    // reference: http://en.wikipedia.org/wiki/Dew_point
+    float CalculateDewPoint(float celsius, float humidity)
+    {
+      float a = 17.271;
+      float b = 237.7;
+      float temp = (a * celsius) / (b + celsius) + log(humidity*0.01);
+      float Td = (b * temp) / (a - temp);
+      return Td;
     }
 
     void http_dht_remove_sensor() {
@@ -909,10 +1183,15 @@
           yield();
           delay(10);
           if (!BME280.begin()) { // read error
-            Serial.println("Failed to read from BME280 sensor!");
+            BME280_All_Sensor_Values_Temp[n] = NAN;
+            BME280_All_Sensor_Values_Hum[n]  = NAN;
+            BME280_All_Sensor_Values_Press[n] = NAN;
+            BME280_All_Sensor_Values_Dew[n] = NAN;
+            BME280_All_Sensor_Values_Alt[n] = NAN;
+            BME280_All_Sensor_Values_Heat[n] = NAN;
             String BME280_err;
             BME280_err += " ERROR: Failed to read from BME280 sensor " + String(SETTINGS.BME280_ident[n]) + ".";
-            sendUdpSyslog(BME280_err);
+            SendLog(BME280_err);
           }
           else {
             BME280_All_Sensor_Values_Temp[n] = BME280.temp();
@@ -920,7 +1199,7 @@
             BME280_All_Sensor_Values_Press[n] = BME280.press(0x1); //vrne mBar
             BME280_All_Sensor_Values_Dew[n] = BME280.dew();
             BME280_All_Sensor_Values_Alt[n] = BME280.alt();
-            BME280_All_Sensor_Values_Temp[n] = BME280.temp();
+            BME280_All_Sensor_Values_Heat[n] = dht.computeHeatIndex(BME280_All_Sensor_Values_Temp[n], BME280_All_Sensor_Values_Hum[n], false);
           }
         }
       }
@@ -937,41 +1216,32 @@
     void MAX6675_read_data() {
       for (int n = 0; n < SETTINGS.MAX6675_num_configured; n++) {
         if (SETTINGS.MAX6675_pin_clk[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-
           uint16_t v;
           pinMode(SETTINGS.MAX6675_pin_cs[n], OUTPUT);
           pinMode(SETTINGS.MAX6675_pin_do[n], INPUT);
           pinMode(SETTINGS.MAX6675_pin_clk[n], OUTPUT);
-          
           digitalWrite(SETTINGS.MAX6675_pin_cs[n], LOW);
           delay(1);
-        
           // Read in 16 bits,
           //  15    = 0 always
           //  14..2 = 0.25 degree counts MSB First
           //  2     = 1 if thermocouple is open circuit  
-          //  1..0  = uninteresting status
-          
+          //  1..0  = uninteresting status 
           v = shiftIn(SETTINGS.MAX6675_pin_do[n], SETTINGS.MAX6675_pin_clk[n], MSBFIRST);
           v <<= 8;
-          v |= shiftIn(SETTINGS.MAX6675_pin_do[n], SETTINGS.MAX6675_pin_clk[n], MSBFIRST);
-          
+          v |= shiftIn(SETTINGS.MAX6675_pin_do[n], SETTINGS.MAX6675_pin_clk[n], MSBFIRST); 
           digitalWrite(SETTINGS.MAX6675_pin_cs[n], HIGH);
           if (v & 0x4) 
           {    
             // Bit 2 indicates if the thermocouple is disconnected
-            Serial.println("ERROR, thermocouple is disconnected!");
-            //return NAN;     
+            MAX6675_All_Sensor_Values_Temp[n] = NAN;
+            SendLog(" ERROR: thermocouple " + String(SETTINGS.MAX6675_ident[n]) + " disconnected.");
+            return;     
           }
-        
           // The lower three bits (0,1,2) are discarded status bits
           v >>= 3;
-        
           // The remaining bits are the number of 0.25 degree (C) counts
-//          Serial.print("thermocouple: ");
-//          Serial.println(v*0.25);
           MAX6675_All_Sensor_Values_Temp[n] = v*0.25;
-          //return v*0.25;
         }
       }
     }
@@ -984,26 +1254,8 @@
       server.send(200, "text/html", html);      
     }
 
-    void handle_load_defaults() {
-      // wifi
-      //strcpy (SETTINGS.ssid, "ssid-to-connect-to"); ne potrebujemo imamo dropdown
-      strcpy (SETTINGS.password, "password");
-      strcpy (SETTINGS.ap_ssid, "universal");
-      strcpy (SETTINGS.ap_password, "password");
-      strcpy (SETTINGS.css_link, "");
-      strcpy (SETTINGS.syslog, "");
-      SETTINGS.DS18B20_num_configured = 0;
-      SETTINGS.DHT_num_configured = 0;
-      SETTINGS.BME280_num_configured = 0;
-      SETTINGS.MAX6675_num_configured = 0;
-      String html = BackURLSystemSettings;
-      server.send(200, "text/html", html);
-      Serial.println("Defaults loaded!");
-      sendUdpSyslog(" INFO: Defaults loaded."); 
-    }
-    
     void handle_enable_ap_sta() {
-      sendUdpSyslog(" INFO: Soft AP enabled.");
+      SendLog(" INFO: Soft AP enabled.");
       TurnOff60SoftAP = false;
       WiFi.mode(WIFI_AP_STA);
       WiFi.softAP(SETTINGS.ap_ssid, SETTINGS.ap_password);
@@ -1014,7 +1266,7 @@
     }
     
     void handle_disable_ap() {
-      sendUdpSyslog(" INFO: SoftAP disabled.");
+      SendLog(" INFO: SoftAP disabled.");
       WiFi.mode(WIFI_STA);
       Serial.print("SoftAP disabled! ");
       Serial.println(WiFi.localIP());
@@ -1023,7 +1275,7 @@
     }   
     
     void handle_reboot() {
-      sendUdpSyslog(" INFO: Restart requested."); 
+      SendLog(" INFO: Restart requested."); 
       String html = BackURLSystemSettings;
       server.send(200, "text/html", html);
       delay(300);
@@ -1035,17 +1287,13 @@
       html += "<title>" + String(SETTINGS.hostname) + "</title>";
       html += "<meta charset=\"UTF-8\">\n";
         if (SETTINGS.css_link[0] == '\0') { // preverim ali je css settings prazen, potem nalozim default css
-          html += css_string();
+          //html += css_string();
+          html += FPSTR(CSS);
         }
         else {
           html += "<link rel=\"stylesheet\" type=\"text/css\" href=\"" + String(SETTINGS.css_link) + "\">"; 
         }
-      html += "</head><body class=\"f9\">";
-      html += "<script type=\"text/javascript\">function loadContent(){var xmlhttp;if (window.XMLHttpRequest){xmlhttp = new XMLHttpRequest();}xmlhttp.onreadystatechange = function(){\n";
-      html += "if (xmlhttp.readyState == XMLHttpRequest.DONE ){if(xmlhttp.status == 200){document.getElementById(\"rtdiv\").innerHTML = xmlhttp.responseText;\n";
-      html += "setTimeout(loadContent, 200);}}}\n";
-      html += "xmlhttp.open(\"GET\", \"/values\", true); xmlhttp.send(); } loadContent(); </script>\n";
-      html += "<span id=\"rtdiv\">Checking ...</span><br>";
+      html += static_html_handle_root;
       for (int n = 0; n < SETTINGS.IO_num_configured; n++) {
         if (SETTINGS.IO_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
           if (SETTINGS.IO_mode[n] == 4) { // TOGGLE
@@ -1064,7 +1312,7 @@
           }      
         }
       }
-      //html += "<a href=\"/settings\"><button class=\"g\">SETTINGS</button></a>";
+      html += "<div class=\"set\"><a href=\"/settings\">⚙</a></div>";
       html += "</body></html>\n";
       server.send(200, "text/html", html);
       yield();
@@ -1093,12 +1341,14 @@
       for (int n = 0; n < SETTINGS.DHT_num_configured; n++) {
         if (SETTINGS.DHT_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
           html += "<span class=\"cloud\">" + String(SETTINGS.DHT_ident[n]) + "<br>" + String(DHT_All_Sensor_Values_Temp[n]) + "°C/" + String(DHT_All_Sensor_Values_Hum[n]) + "%</span>";
+          html += "<span class=\"cloud\">" + String(SETTINGS.DHT_ident[n]) + " heat/dew<br>" + String(DHT_All_Sensor_Values_Heat[n]) + "°C/" + String(DHT_All_Sensor_Values_Dew[n]) + "°C</span>";
         }
       }
       for (int n = 0; n < SETTINGS.BME280_num_configured; n++) {
         if (SETTINGS.BME280_pin_sda[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
           html += "<span class=\"cloud\">" + String(SETTINGS.BME280_ident[n]) + "<br>" + String(BME280_All_Sensor_Values_Temp[n]) + "°C/" + String(BME280_All_Sensor_Values_Hum[n]) + "%</span>";
-          html += "<span class=\"cloud\">" + String(SETTINGS.BME280_ident[n]) + "<br>" + String(BME280_All_Sensor_Values_Press[n]) + "mBar/" + String(BME280_All_Sensor_Values_Dew[n]) + "°C(dew)</span>";
+          html += "<span class=\"cloud\">" + String(SETTINGS.BME280_ident[n]) + " pressure<br>" + String(BME280_All_Sensor_Values_Press[n]) + "mBar</span>";
+          html += "<span class=\"cloud\">" + String(SETTINGS.BME280_ident[n]) + " heat/dew<br>" + String(BME280_All_Sensor_Values_Heat[n]) + "°C/" + String(BME280_All_Sensor_Values_Dew[n]) + "°C</span>";
         }
       }
       for (int n = 0; n < SETTINGS.MAX6675_num_configured; n++) {
@@ -1127,8 +1377,8 @@
       mins=mins-(hours*60); //subtract the coverted minutes to hours in order to display 59 minutes max
       hours=hours-(days*24); //subtract the coverted hours to days in order to display 23 hours max
       String html;
-//      html += "<span class=\"cloud\"> ura <br>" + show_time() + "</span>";
-//      html += "<span class=\"cloud\"> datum <br>" + show_date() + "</span>";
+      html += "<span class=\"cloud\"> clock <br>" + show_time() + "</span>";
+      html += "<span class=\"cloud\"> date <br>" + show_date() + "</span>";
       html += "<span class=\"cloud\"> wifi <br>" + String(WiFi.RSSI()) + "dB</span>";
       html += "<span class=\"cloud\"> Vcc <br>" + String((float)ESP.getVcc()/890) + "V</span>";
       html += "<span class=\"cloud\"> uptime <br>" + String((long)days) + "d " + String((long)hours) + "h " + String((long)mins) + "m " + String((long)secs)+ "s</span>";
@@ -1140,19 +1390,13 @@
         html += "<title>" + String(SETTINGS.hostname) + "</title>";
         html += "<meta charset=\"UTF-8\">\n";
         if (SETTINGS.css_link[0] == '\0') { // preverim ali je css settings prazen, potem nalozim default css
-          html += css_string();
+          //html += css_string();
+          html += FPSTR(CSS);
         }
         else {
           html += "<link rel=\"stylesheet\" type=\"text/css\" href=\"" + String(SETTINGS.css_link) + "\">"; 
         }
-        html += "</head><body class=\"f9\">";
-        html += "<script type=\"text/javascript\">function loadContent(){var xmlhttp;if (window.XMLHttpRequest){xmlhttp = new XMLHttpRequest();}xmlhttp.onreadystatechange = function(){\n";
-        html += "if (xmlhttp.readyState == XMLHttpRequest.DONE ){if(xmlhttp.status == 200){document.getElementById(\"shdiv\").innerHTML = xmlhttp.responseText;\n";
-        html += "setTimeout(loadContent, 200);}}}\n";
-        html += "xmlhttp.open(\"GET\", \"/values\", true); xmlhttp.send(); } loadContent(); </script>\n";
-        html += "<div id=\"shdiv\">Checking ...</div><br>";
-        html += "<a href=\"/\"><button class=\"g\">NAZAJ</button></a>";
-        html += "</body></html>\n";
+        html += static_html_handle_show;
         server.send(200, "text/html", html);
         yield();
     }
@@ -1164,7 +1408,8 @@
         html += "<title>" + String(SETTINGS.hostname) + " settings</title>";
         html += "<meta charset=\"UTF-8\">\n";
         if (SETTINGS.css_link[0] == '\0') { // preverim ali je css settings prazen, potem nalozim default css
-          html += css_string();
+          //html += css_string();
+          html += FPSTR(CSS);
         }
         else {
           html += "<link rel=\"stylesheet\" type=\"text/css\" href=\"" + String(SETTINGS.css_link) + "\">"; 
@@ -1248,76 +1493,101 @@
         server.sendContent(html);
         delay(10);
         yield();
-        
         html = ""; // ne brisi
-        html += "<form method='get' action='savesys' id=\"save\" >";
-        html += "<table><tr><th>Http client settings (post json data)</th></tr>";
-        html += "</td><td>interval:<input name='hint' value='" + String(SETTINGS.http_post_interval) + "' maxlength='6' type='text' size='6'/>sec, ";
-        if (SETTINGS.http_post_enabled) {
-          html += "<input type='checkbox' name='hen' value='1' checked/>enabled, ";
-        } else {
-          html += "<input type='checkbox' name='hen' value='1'/>enabled, "; 
-        }
-        html += " url:<input name='hurl' value='" + String(SETTINGS.http_post_url) + "' maxlength='100' type='text' size='50'/>";
-        html += "</td><tr></table>";
+        html += "<table><tr><th colspan=\"9\">influxdb, carbon, redis settings</th></tr>";
+        html += "<tr><th>#</th><th>type</th><th>hostname/ip</th><th>port</th><th>interval[sec]</th><th>db name</th><th>db username</th><th>db password</th></tr>";
+        html += http_data_collector_config();
+        html += "<tr><td><form method='get' action='flxadd' ></td><td><select name=\"flxty\" ><option value=\"1\">influxdb_tcp</option><option value=\"2\">carbon_udp</option><option value=\"3\">redis_tcp</option></select></td><td>";
+        html += "<input name='flxho' value='' maxlength='100' type='text' size='15'/></td><td>";
+        html += "<input name='flxpo' value='' maxlength='6' type='text' size='6'/></td><td>";
+        html += "<input name='flxin' value='' maxlength='6' type='text' type='text' size='6'/></td><td>";
+        html += "<input name='flxdn' value='' maxlength='15' type='text' size='6'/></td><td>";
+        html += "<input name='flxdu' value='' maxlength='15' type='text' size='6'/></td><td>";
+        html += "<input name='flxdp' value='' maxlength='15' type='password' size='6'/>";
+        html += "<button type=\"submit\" class=\"d\">+</button></form><a href=\"/flxrem\"><button class=\"d\">-</button></a></td><tr></table>";
         server.sendContent(html);
         delay(10);
         yield();
         html = ""; // ne brisi
-        html += "<table><tr><th>Update domoticz sensors</th></tr>";
-        html += "</td><td>interval:<input name='domint' value='" + String(SETTINGS.domoticz_update_interval) + "' maxlength='6' type='text' size='6'/>sec, ";
+        html += "<form method='get' action='commit' id=\"commit\" >";
+        html += "<table><tr><th colspan=\"7\">Domoticz update sensors settings</th></tr>";
+        html += "<tr><th>hostname/ip</th><th>port</th><th>interval[sec]</th><th>voltage idx</th><th>wifi idx</th><th>uptime</th><th>enabled</th></tr>";
+        html += "<tr><td><input name='domip' value='" + String(SETTINGS.domoticz_ip) + "' maxlength='15' type='text' size='15'/></td><td>";
+        html += "<input name='domport' value='" + String(SETTINGS.domoticz_port) + "' maxlength='6' type='text' size='6'/></td><td>";
+        html += "<input name='domint' value='" + String(SETTINGS.domoticz_update_interval) + "' maxlength='6' type='text' size='6'/></td><td>";
+        html += "<input name='domvolt' value='" + String(SETTINGS.domoticz_idx_voltage) + "' maxlength='6' type='text' size='6'/></td><td>";
+        html += "<input name='domwifi' value='" + String(SETTINGS.domoticz_idx_wifi) + "' maxlength='6' type='text' size='6'/></td><td>";
+        html += "<input name='domtime' value='" + String(SETTINGS.domoticz_idx_uptime) + "' maxlength='6' type='text' size='6'/></td><td>";
         if (SETTINGS.domoticz_update_enabled) {
-          html += "<input type='checkbox' name='domen' value='1' checked/>enabled, ";
+          html += "<input type='checkbox' name='domen' value='1' checked/>";
         } else {
-          html += "<input type='checkbox' name='domen' value='1'/>enabled, "; 
+          html += "<input type='checkbox' name='domen' value='1'/>"; 
         }
-        html += "ip:<input name='domip' value='" + String(SETTINGS.domoticz_ip) + "' maxlength='15' type='text' size='15'/>, ";
-        html += "port:<input name='domport' value='" + String(SETTINGS.domoticz_port) + "' maxlength='6' type='text' size='6'/></td></tr>";
-        html += "<tr><td>voltage idx:<input name='domvolt' value='" + String(SETTINGS.domoticz_idx_voltage) + "' maxlength='6' type='text' size='6'/>, ";
-        html += "uptime idx:<input name='domtime' value='" + String(SETTINGS.domoticz_idx_uptime) + "' maxlength='6' type='text' size='6'/>, ";
-        html += "wifi idx:<input name='domwifi' value='" + String(SETTINGS.domoticz_idx_wifi) + "' maxlength='6' type='text' size='6'/>";
         html += "</td><tr></table>";
         server.sendContent(html);
         delay(10);
         yield();
         html = ""; // ne brisi
-        html += "<table><tr><th>MQTT client</th></tr>";
-        html += "</td><td>broker:<input name='mqbr' value='" + String(SETTINGS.mqtt_server) + "' maxlength='100' type='text' size='50'/>, ";
-        if (SETTINGS.mqtt_server_enabled) {
-          html += "<input type='checkbox' name='mqen' value='1' checked/>enabled, ";
+        html += "<table><tr><th colspan=\"6\">MQTT settings</th></tr>";
+        html += "<tr><th>broker/ip</th><th>port</th><th>interval[sec]</th><th>username</th><th>password</th><th>enabled</th></tr>";
+        html += "<tr><td><input name='mqbr' value='" + String(SETTINGS.mqtt_server) + "' maxlength='100' type='text' size='15'/></td><td>";;
+        html += "<input name='mqprt' value='" + String(SETTINGS.mqtt_port) + "' maxlength='6' type='text' size='6'/></td><td>";
+        html += "<input name='mqint' value='" + String(SETTINGS.mqtt_interval) + "' maxlength='6' type='text' size='6'/></td><td>";
+        html += "<input name='mqkey' value='" + String(SETTINGS.mqtt_key) + "' maxlength='25' type='text' size='15'/></td><td>";
+        html += "<input name='mqsec' value='" + String(SETTINGS.mqtt_secret) + "' maxlength='25' type='password' size='15'/></td><td>";
+        if (SETTINGS.mqtt_enabled) {
+          html += "<input type='checkbox' name='mqena' value='1' checked/>";
         } else {
-          html += "<input type='checkbox' name='mqen' value='1'/>enabled, "; 
+          html += "<input type='checkbox' name='mqena' value='1'/>"; 
         }
-        html += "</td></tr><tr><td> mqtt_id:<b>" + String(SETTINGS.hostname) + "</b>, username:<input name='mqkey' value='" + String(SETTINGS.mqtt_key) + "' maxlength='25' type='text' size='15'/>, ";
-        html += "password:<input name='mqsec' value='" + String(SETTINGS.mqtt_secret) + "' maxlength='25' type='text' type='password' size='15'/></td></tr>";
         html += "</td><tr></table>";
         server.sendContent(html);
         delay(10);
         yield();
         html = "<table>"; // ne brisi
-        //html += "<form method='get' action='savesys' id=\"save\" >"; //prestavil na http client
-        html += "<tr><th>System settings - version " + Version + "</th></tr>";
-        html += "<tr><td>hostname:<input name='hostname' value='" + String(SETTINGS.hostname) + "' maxlength='150' type='text' size='50'/></td></tr>";
-        html += "<tr><td>css url:<input name='css' value='" + String(SETTINGS.css_link) + "' maxlength='150' type='text' size='50' /></td></tr>";
-        //html += "<tr><td>ntp hostname:<input name='ntp' value='" + String(SETTINGS.NTP_hostname) + "' maxlength='20' type='text' size='50' /></td></tr>";
-        html += "<tr><td>syslog IP:<input name='syslog' value='" + String(SETTINGS.syslog) + "' maxlength='20' type='text' size='50'/></td></tr>"; 
-        html += "<tr><td>ssid:" + String(http_WiFi_Scan()) + "</td></tr>";
-        html += "<tr><td>psk:<input name='pass' value='" + String(SETTINGS.password) + "' maxlength='32' pattern='[0-9A-Za-z]{8,30}' type='password' size='50'/></td></tr>";
-        html += "<tr><td>ap ssid:<input name='ap_ssid' value='" + String(SETTINGS.ap_ssid) + "' maxlength='32' type='text' size='50' /></td></tr>";
-        html += "<tr><td>ap psk:<input name='ap_pass' value='" + String(SETTINGS.ap_password) + "' maxlength='32' type='password' pattern='[0-9A-Za-z]{8,30}' size='50'/></td></tr>";
+        html += "<tr><th colspan=\"3\">NTP settings</th></tr>";
+        html += "<tr><th>ntp hostname</th><th>timezone GMT</th></tr>";
+        html += "<tr><td><input name='ntp' value='" + String(SETTINGS.NTP_hostname) + "' maxlength='150' type='text' size='15'/></td><td>";
+        html += "<input name='gmt' value='" + String(SETTINGS.timezone_GMT) + "' maxlength='3' type='text' size='6' /></td>";
+        html += "<tr></table>";
+        server.sendContent(html);
+        delay(10);
+        yield();
+        html = "<table>"; // ne brisi
+        html += "<tr><th colspan=\"3\">system settings - version " + Version + "</th></tr>";
+        html += "<tr><th>hostname</th><th>CSS url</th><th>syslog ip</th></tr>";
+        html += "<tr><td><input name='hostname' value='" + String(SETTINGS.hostname) + "' maxlength='150' type='text' size='15'/></td><td>";
+        html += "<input name='css' value='" + String(SETTINGS.css_link) + "' maxlength='150' type='text' size='25' /></td><td>";
+        html += "<input name='syslog' value='" + String(SETTINGS.syslog) + "' maxlength='20' type='text' size='15'/></td></tr>";
+        html += "</td><tr></table>";
+        server.sendContent(html);
+        delay(10);
+        yield();
+        html = "<table>"; // ne brisi
+        html += "<tr><th  colspan=\"4\">WiFi settings</th></tr>";
+        html += "<tr><th>SSID</th><th>PSK</th><th>AP SSID</th><th>AP PSK</th></tr>";
+        html += "<tr><td>" + http_print_wifi_networks() + "</td><td>";
+        html += "<input name='pass' value='" + String(SETTINGS.password) + "' maxlength='32' pattern='[0-9A-Za-z]{8,30}' type='password' size='15'/></td><td>";
+        html += "<input name='ap_ssid' value='" + String(SETTINGS.ap_ssid) + "' maxlength='32' type='text' size='15' /></td><td>";
+        html += "<input name='ap_pass' value='" + String(SETTINGS.ap_password) + "' maxlength='32' type='password' pattern='[0-9A-Za-z]{8,30}' size='15'/></td></tr>";
         html += "</table></form>";
         server.sendContent(html);
         delay(10);
         yield();
         html = ""; // ne brisi
-        html += "<a href=\"/settings\"><button class=\"g\">REFRESH</button></a>";
-        html += "<button class=\"g\" form=\"save\" type='submit'>SAVE</button>";
+        html += "<button class=\"g\" form=\"commit\" type=\"submit\">SAVE</button>";
+        //html += "<a href=\"/save\"><button class=\"g\">SAVE</button></a>";
         html += "<a href=\"/\"><button class=\"g\">BACK</button></a>";
         html += "<a href=\"/disap\"><button class=\"g\">ONLY STATION MODE</button></a>";
         html += "<a href=\"/enapsta\"><button class=\"g\">AP + STATION MODE</button></a>";
         html += "<a href=\"/recon\"><button class=\"g\">RECONNECT</button></a>";
         html += "<a href=\"/default\"><button class=\"g\">LOAD DEFAULTS</button></a>";
-        //html += "<a href=\"/espupdate\"><button class=\"syg\">OTA UPDATE</button></a>";
+        html += "<a href=\"/settings\"><button class=\"g\">REFRESH</button></a>";
+        html += "<a href=\"/espupdate\"><button class=\"g\">OTA UPDATE</button></a>";
+        html += "<a href=\"/reboot\"><button class=\"g\">REBOOT</button></a>";
+        html += "<a href=\"/crashinfo\"><button class=\"g\">VIEW CRASH INFO</button></a>";
+        html += "<a href=\"/clearcrash\"><button class=\"g\">CLEAR CRASH INFO</button></a>";
+        html += "<a href=\"/ntpupdate\"><button class=\"g\">NTP UPDATE</button></a>";
         html += "</body></html>\n";
         server.sendContent(html); // poslje paket
         delay(10);
@@ -1331,21 +1601,30 @@
       json += "{";
       if (SETTINGS.DS18B20_pin != Not_used_pin_number) { // ce je pin=100 potem je disabled
         for (int n = 0; n < SETTINGS.DS18B20_num_configured; n++) {
-          json += "\"" + String(SETTINGS.DS18B20_ident[n]) + "temp\": \"" + String(DS18B20_All_Sensor_Values[n]) + "\", ";
+          if (!isnan(DS18B20_All_Sensor_Values[n])) {
+            json += "\"" + String(SETTINGS.DS18B20_ident[n]) + "temp\": \"" + String(DS18B20_All_Sensor_Values[n]) + "\", ";
+          }
         }
       }
       for (int n = 0; n < SETTINGS.DHT_num_configured; n++) {
         if (SETTINGS.DHT_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-          json += "\"" + String(SETTINGS.DHT_ident[n]) + "temp\": \"" + String(DHT_All_Sensor_Values_Temp[n]) + "\", ";
-          json += "\"" + String(SETTINGS.DHT_ident[n]) + "hum\": \"" + String(DHT_All_Sensor_Values_Hum[n]) + "\", ";
+          if (!isnan(DHT_All_Sensor_Values_Temp[n]) && !isnan(DHT_All_Sensor_Values_Hum[n])) {
+            json += "\"" + String(SETTINGS.DHT_ident[n]) + "temp\": \"" + String(DHT_All_Sensor_Values_Temp[n]) + "\", ";
+            json += "\"" + String(SETTINGS.DHT_ident[n]) + "hum\": \"" + String(DHT_All_Sensor_Values_Hum[n]) + "\", ";
+            json += "\"" + String(SETTINGS.DHT_ident[n]) + "heat\": \"" + String(DHT_All_Sensor_Values_Heat[n]) + "\", ";
+            json += "\"" + String(SETTINGS.DHT_ident[n]) + "dew\": \"" + String(DHT_All_Sensor_Values_Dew[n]) + "\", ";
+          }
         }
       }
       for (int n = 0; n < SETTINGS.BME280_num_configured; n++) {
         if (SETTINGS.BME280_pin_sda[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-          json += "\"" + String(SETTINGS.BME280_ident[n]) + "temp\": \"" + String(BME280_All_Sensor_Values_Temp[n]) + "\", ";
-          json += "\"" + String(SETTINGS.BME280_ident[n]) + "hum\": \"" + String(BME280_All_Sensor_Values_Hum[n]) + "\", ";
-          json += "\"" + String(SETTINGS.BME280_ident[n]) + "press\": \"" + String(BME280_All_Sensor_Values_Press[n]) + "\", ";
-          json += "\"" + String(SETTINGS.BME280_ident[n]) + "dew\": \"" + String(BME280_All_Sensor_Values_Dew[n]) + "\", ";
+          if (!isnan(BME280_All_Sensor_Values_Temp[n])) {
+            json += "\"" + String(SETTINGS.BME280_ident[n]) + "temp\": \"" + String(BME280_All_Sensor_Values_Temp[n]) + "\", ";
+            json += "\"" + String(SETTINGS.BME280_ident[n]) + "hum\": \"" + String(BME280_All_Sensor_Values_Hum[n]) + "\", ";
+            json += "\"" + String(SETTINGS.BME280_ident[n]) + "press\": \"" + String(BME280_All_Sensor_Values_Press[n]) + "\", ";
+            json += "\"" + String(SETTINGS.BME280_ident[n]) + "heat\": \"" + String(BME280_All_Sensor_Values_Heat[n]) + "\", ";
+            json += "\"" + String(SETTINGS.BME280_ident[n]) + "dew\": \"" + String(BME280_All_Sensor_Values_Dew[n]) + "\", ";
+          }
         }
       }
       for (int n = 0; n < SETTINGS.MAX6675_num_configured; n++) {
@@ -1367,95 +1646,25 @@
       yield();
     }
 
-    void handle_dict_json() {
-      String json;
-      json = generate_dict_json();
-      server.send(200, "text/plain", json);
-      yield();
+    void http_WiFi_Scan() {
+      // WiFi.scanNetworks(async, show_hidden) 
+      // asysnc - if set to true then scanning will start in background and function will exit without waiting for result. To check for result use separate function scanComplete that is described below.
+      // show_hidden - set it to true to include in scan result networks with hidden SSID.
+      WiFi.scanNetworks(true, true);
+      String html = BackURLSystemSettings;
+      server.send(200, "text/html", html);
     }
-   
-    String generate_dict_json() {
-      // TODO , problemi !!!
-      String json;
-      json += "{ \"" + String(SETTINGS.hostname) + "\":{\"temperature\":[";
-      if (SETTINGS.DS18B20_pin != Not_used_pin_number) { // ce je pin=100 potem je disabled
-        for (int n = 0; n < SETTINGS.DS18B20_num_configured; n++) {
-          json += "{\"identificator\":\"" + String(SETTINGS.DS18B20_ident[n]) + "\",\"value\":\"" + String(DS18B20_All_Sensor_Values[n]) + "\"},";
-        }
-      }
-      for (int n = 0; n < SETTINGS.DHT_num_configured; n++) {
-        if (SETTINGS.DHT_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-          json += "{\"identificator\":\"" + String(SETTINGS.DHT_ident[n]) + "\",\"value\":\"" + String(DHT_All_Sensor_Values_Temp[n]) + "\"},";
-        }
-      }
-      for (int n = 0; n < SETTINGS.BME280_num_configured; n++) {
-        if (SETTINGS.BME280_pin_sda[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-          json += "{\"identificator\":\"" + String(SETTINGS.BME280_ident[n]) + "\",\"value\":\"" + String(BME280_All_Sensor_Values_Temp[n]) + "\"},";
-        }
-      }
-      for (int n = 0; n < SETTINGS.MAX6675_num_configured; n++) {
-        if (SETTINGS.MAX6675_pin_clk[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-          json += "{\"identificator\":\"" + String(SETTINGS.MAX6675_ident[n]) + "\",\"value\":\"" + String(MAX6675_All_Sensor_Values_Temp[n]) + "\"},";
-        }
-      }
-      json += "{}],\"humidity\":[";
-      for (int n = 0; n < SETTINGS.DHT_num_configured; n++) {
-        if (SETTINGS.DHT_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-          json += "{\"identificator\":\"" + String(SETTINGS.DHT_ident[n]) + "\",\"value\":\"" + String(DHT_All_Sensor_Values_Hum[n]) + "\"},";
-        }
-      }
-      for (int n = 0; n < SETTINGS.BME280_num_configured; n++) {
-        if (SETTINGS.BME280_pin_sda[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-          json += "{\"identificator\":\"" + String(SETTINGS.BME280_ident[n]) + "\",\"value\":\"" + String(BME280_All_Sensor_Values_Hum[n]) + "\"},";
-        }
-      } 
-      json += "{}],\"pressure\":[";
-      for (int n = 0; n < SETTINGS.BME280_num_configured; n++) {
-        if (SETTINGS.BME280_pin_sda[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-          json += "{\"identificator\":\"" + String(SETTINGS.BME280_ident[n]) + "\",\"value\":\"" + String(BME280_All_Sensor_Values_Press[n]) + "\"},";
-        }
-      }
-      json += "{}]},";
-      json += "\"wifi\": \"" + String(WiFi.RSSI()) + "\", ";
-      json += "\"uptime\": \"" + String((unsigned long)millis()) + "\", ";
-      json += "\"freeheap\": \"" + String(ESP.getFreeHeap()) + "\", ";
-      json += "\"vcc\": \"" + String((float)ESP.getVcc()/890) + "\"";
-      json += "}";
-      return json;
-    }
-   
-    void esp_info() {
-      String text;
-      text += "ResetInfo: " + String(ESP.getResetInfo()) + "\n";
-      //text += "ResetPtr: " + String(ESP.getResetInfoPtr()) + "\n";
-      text += "FreeHeap: " + String(ESP.getFreeHeap()) + "\n";
-      text += "CPUFreqMhz: " + String(ESP.getCpuFreqMHz()) + "\n";
-      text += "SketchSize: " + String(ESP.getSketchSize()) + "\n";
-      text += "FreeSketchSpace: " + String(ESP.getFreeSketchSpace()) + "\n";
-      text += "BootMode: " + String(ESP.getBootMode()) + "\n";
-      text += "BootVersion: " + String(ESP.getBootVersion()) + "\n";
-      text += "SdkVersion: " + String(ESP.getSdkVersion()) + "\n";
-      text += "ChipId: " +  String(ESP.getChipId()) + "\n";
-      text += "FlashChipSize: " + String(ESP.getFlashChipSize()) + "\n";
-      text += "FlashChipRealSize: " + String(ESP.getFlashChipRealSize()) + "\n";
-      text += "FlashChipSizeByChipId: " + String(ESP.getFlashChipSizeByChipId()) + "\n";
-      text += "FlashChipId: " + String(ESP.getFlashChipId()) + "\n";
-      server.send(200, "text/html", text);
-      yield();
-    }
-    
+
     // preskenira wifi in vrne String pull down networkov
-    String http_WiFi_Scan() {
+    String http_print_wifi_networks() {
       String DropDown = "<select name=\"ssid\">";
-      int n = WiFi.scanNetworks();
+      int n = WiFi.scanComplete();
+      String MyWiFiNetworks;
       if (n == 0)
-        sendUdpSyslog(" INFO: Wifi scan done, no networks found");
+        SendLog(" INFO: Wifi scan done, no networks found");
       else
       {
-        sendUdpSyslog(" INFO: Wifi scan done, found " + String(n) + " networks");
-        String MyWiFiNetworks;
-        for (int i = 0; i < n; ++i)
-        {
+        for (int i = 0; i < n; ++i) {
           // Print SSID and RSSI for each network found
           if (WiFi.SSID(i) == SETTINGS.ssid) { // že izbran ssid
             DropDown += "<option value=\"" + String(WiFi.SSID(i)) + "\" selected>" + String(WiFi.SSID(i)) +" ("+ String(WiFi.RSSI(i)) +"dBm)</option>";
@@ -1466,8 +1675,9 @@
           MyWiFiNetworks += String(WiFi.SSID(i)) + "("+ String(WiFi.RSSI(i)) + "dBm) ";
         }
         DropDown += "</select>";
-        sendUdpSyslog(" INFO: Networks:" + MyWiFiNetworks);
       }
+      delay(5);
+      SendLog(" INFO: Wifi scan done, found: " + MyWiFiNetworks);
       return DropDown;
     }
 
@@ -1650,23 +1860,6 @@
       //html += "</table>"; // nadaljujem s formo za vnos!!!
       return html;
     }
-      
-    // http client
-    void http_post_client() {
-      if (SETTINGS.http_post_enabled) {
-        if (millis() - previousHttpPost > SETTINGS.http_post_interval * 1000) {
-          previousHttpPost = millis();
-          yield();
-          HTTPClient http;
-          //http.begin("http://172.22.0.242/test/post.php");
-          http.begin(SETTINGS.http_post_url);
-          http.addHeader("Content-Type", "application/json");
-          http.POST(generate_dict_json());
-          http.writeToStream(&Serial);
-          http.end();
-       }
-     }
-   }
    
     int domoticz_hum_stat_converter(float h) {
       if ( h > 70 ) {
@@ -1721,47 +1914,55 @@
           }                    
           for(int n = 0; n < SETTINGS.DS18B20_num_configured; n++) {
             // temp domoticz api url: /json.htm?type=command&param=udevice&idx=IDX&nvalue=0&svalue=TEMP
-            String url = "/json.htm?type=command&param=udevice&idx=";
-            url += SETTINGS.DS18B20_domoticz_idx[n];
-            url += "&nvalue=0&svalue=";
-            url += String(DS18B20_All_Sensor_Values[n]);
-            domoticz_update(url);
+            if (!isnan(DS18B20_All_Sensor_Values[n])) {
+              String url = "/json.htm?type=command&param=udevice&idx=";
+              url += SETTINGS.DS18B20_domoticz_idx[n];
+              url += "&nvalue=0&svalue=";
+              url += String(DS18B20_All_Sensor_Values[n]);
+              domoticz_update(url);
+            }
          }
           for(int n = 0; n < SETTINGS.DHT_num_configured; n++) {
             // temp/hum domoticz api url: /json.htm?type=command&param=udevice&idx=IDX&nvalue=0&svalue=TEMP;HUM;HUM_STAT
-            String url = "/json.htm?type=command&param=udevice&idx=";
-            url += SETTINGS.DHT_domoticz_idx[n];
-            url += "&nvalue=0&svalue=";
-            url += String(DHT_All_Sensor_Values_Temp[n]);
-            url += ";";
-            url += String(DHT_All_Sensor_Values_Hum[n]);
-            url += ";";
-            url += String(domoticz_hum_stat_converter(DHT_All_Sensor_Values_Hum[n]));
-            domoticz_update(url);
+            if (!isnan(DHT_All_Sensor_Values_Temp[n]) && !isnan(DHT_All_Sensor_Values_Hum[n])) {
+              String url = "/json.htm?type=command&param=udevice&idx=";
+              url += SETTINGS.DHT_domoticz_idx[n];
+              url += "&nvalue=0&svalue=";
+              url += String(DHT_All_Sensor_Values_Temp[n]);
+              url += ";";
+              url += String(DHT_All_Sensor_Values_Hum[n]);
+              url += ";";
+              url += String(domoticz_hum_stat_converter(DHT_All_Sensor_Values_Hum[n]));
+              domoticz_update(url);
+           }
          }
           for(int n = 0; n < SETTINGS.BME280_num_configured; n++) {
             // temp/hum/bar domoticz api url: /json.htm?type=command&param=udevice&idx=IDX&nvalue=0&svalue=TEMP;HUM;HUM_STAT;BAR;BAR_FOR
-            String url = "/json.htm?type=command&param=udevice&idx=";
-            url += SETTINGS.BME280_domoticz_idx[n];
-            url += "&nvalue=0&svalue=";
-            url += String(BME280_All_Sensor_Values_Temp[n]);
-            url += ";";
-            url += String(BME280_All_Sensor_Values_Hum[n]);
-            url += ";";
-            url += String(domoticz_hum_stat_converter(BME280_All_Sensor_Values_Hum[n]));
-            url += ";";
-            url += String(BME280_All_Sensor_Values_Press[n]);
-            url += ";";
-            url += String(domoticz_press_stat_converter(BME280_All_Sensor_Values_Press[n]));
-            domoticz_update(url);
+            if (!isnan(BME280_All_Sensor_Values_Temp[n])) {
+              String url = "/json.htm?type=command&param=udevice&idx=";
+              url += SETTINGS.BME280_domoticz_idx[n];
+              url += "&nvalue=0&svalue=";
+              url += String(BME280_All_Sensor_Values_Temp[n]);
+              url += ";";
+              url += String(BME280_All_Sensor_Values_Hum[n]);
+              url += ";";
+              url += String(domoticz_hum_stat_converter(BME280_All_Sensor_Values_Hum[n]));
+              url += ";";
+              url += String(BME280_All_Sensor_Values_Press[n]);
+              url += ";";
+              url += String(domoticz_press_stat_converter(BME280_All_Sensor_Values_Press[n]));
+              domoticz_update(url);
+           }
          }
           for(int n = 0; n < SETTINGS.MAX6675_num_configured; n++) {
             // temp domoticz api url: /json.htm?type=command&param=udevice&idx=IDX&nvalue=0&svalue=TEMP
-            String url = "/json.htm?type=command&param=udevice&idx=";
-            url += SETTINGS.MAX6675_domoticz_idx[n];
-            url += "&nvalue=0&svalue=";
-            url += String(MAX6675_All_Sensor_Values_Temp[n]);
-            domoticz_update(url);
+            if (!isnan(MAX6675_All_Sensor_Values_Temp[n])) {
+              String url = "/json.htm?type=command&param=udevice&idx=";
+              url += SETTINGS.MAX6675_domoticz_idx[n];
+              url += "&nvalue=0&svalue=";
+              url += String(MAX6675_All_Sensor_Values_Temp[n]);
+              domoticz_update(url);
+            }
          }
           for(int n = 0; n < SETTINGS.Ultrasonic_num_configured; n++) {
             // Distance sensor api url: /json.htm?type=command&param=udevice&idx=IDX&nvalue=0&svalue=DISTANCE
@@ -1774,37 +1975,50 @@
        }
      }
    }
-
+   
     // domoticz update client
     void domoticz_update(String url) {
-      WiFiClient client;
-      if (!client.connect(SETTINGS.domoticz_ip, SETTINGS.domoticz_port)) {
-        Serial.println("connection failed");
-        sendUdpSyslog(" ERROR: Error connecting to domoticz."); 
-        return;
-      }
-      //Serial.print("Requesting URL: ");
-      //Serial.println(url);
-      // This will send the request to the server
-      client.print(String("GET ") + url + " HTTP/1.1\r\n" +
-                   "Host: " + SETTINGS.domoticz_ip + "\r\n" + 
-                   "Connection: close\r\n\r\n");
-      unsigned long timeout = millis();
-      while (client.available() == 0) {
-        if (millis() - timeout > 5000) {
-          Serial.println(">>> Client Timeout !");
-          client.stop();
-          return;
+      if (WiFi.status() == WL_CONNECTED) { // da ne crash-ne ko izgubi AP connectivity
+        if (SETTINGS.domoticz_update_enabled) {
+          if (!domoticz_client.connect(SETTINGS.domoticz_ip, SETTINGS.domoticz_port)) {
+            SendLog(" ERROR: domoticz (" + String(SETTINGS.domoticz_ip) + ":" + String(SETTINGS.domoticz_port) + ") connection failed.");
+            return;
+          }
+          yield();
+          domoticz_client.print(String("GET ") + url + " HTTP/1.1\r\n" + "Host: " + SETTINGS.domoticz_ip + "\r\n" + "Connection: close\r\n\r\n");
+          domoticz_client.stop();
+          domoticz_client.flush();
         }
       }
-      // Read all the lines of the reply from server and print them to Serial
-//      while(client.available()){
-//        String line = client.readStringUntil('\r');
-//        Serial.print(line);
+    }
+
+//    // domoticz update client
+//    void domoticz_update(String url) {
+//      if (WiFi.status() == WL_CONNECTED) {
+//        if (SETTINGS.domoticz_update_enabled) {
+//          if (!domoticz_client.connect(SETTINGS.domoticz_ip, SETTINGS.domoticz_port)) {
+//            //Serial.println("connection failed");
+//            SendLog(" ERROR: Error connecting to domoticz."); 
+//            return;
+//          }
+//          //Serial.print("Requesting URL: ");
+//          //Serial.println(url);
+//          // This will send the request to the server
+//          domoticz_client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+//                       "Host: " + SETTINGS.domoticz_ip + "\r\n" + 
+//                       "Connection: close\r\n\r\n");
+//          unsigned long timeout = millis();
+//          while (domoticz_client.available() == 0) {
+//            if (millis() - timeout > 5000) {
+//              //Serial.println(">>> Client Timeout !");
+//              SendLog(" ERROR: domoticz connection timeout.");
+//              domoticz_client.stop();
+//              return;
+//            }
+//          }
+//        }
 //      }
-//      Serial.println();
-//      Serial.println("closing connection");
-    }   
+//    }   
 
    // Kreira dropdown meni za IO mode
     String http_IO_mode (String Name) {   
@@ -1865,12 +2079,12 @@
         if (SETTINGS.IO_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
           // 1 = INPUT, 2 = INPUT_PULLUP, 3 = INPUT_PULLDOWN_16, 4 = OUTPUT (TOGGLE BUTTON), 5 = OUTPUT (PUSH BUTTON), 6 = OUTPUT (INVERTED PUSH BUTTON)
           if (SETTINGS.IO_mode[n] == 5 && digitalRead(SETTINGS.IO_pin[n]) == 1) {
-            if (millis() - previousIOmillis[n] > SETTINGS.IO_timer[n] * 1000) {
+            if (millis() - previousIOmillis[n] >= SETTINGS.IO_timer[n] * 1000) {
               digitalWrite(SETTINGS.IO_pin[n], 0); 
             }
           }
           if (SETTINGS.IO_mode[n] == 6 && digitalRead(SETTINGS.IO_pin[n]) == 0) { // 6 = OUTPUT (INVERTED PUSH BUTTON)
-            if (millis() - previousIOmillis[n] > SETTINGS.IO_timer[n] * 1000) {
+            if (millis() - previousIOmillis[n] >= SETTINGS.IO_timer[n] * 1000) {
               digitalWrite(SETTINGS.IO_pin[n], 1); 
             }
           }
@@ -1930,46 +2144,41 @@
 
 
     void mqtt_init() {
-      if (SETTINGS.mqtt_server_enabled) {
-        // Note: Local domain names (e.g. "Computer.local" on OSX) are not supported by Arduino.
-        // You need to set the IP address directly.
-        client.begin(SETTINGS.mqtt_server, net);
-        client.onMessage(mqtt_receive_data);
-        mqtt_connect();
-      }
+      // Note: Local domain names (e.g. "Computer.local" on OSX) are not supported by Arduino.
+      // You need to set the IP address directly.
+      client.begin(SETTINGS.mqtt_server, SETTINGS.mqtt_port, MQTT_Client);
+      client.onMessage(mqtt_receive_data);
+      mqtt_connect();
     }
 
     void mqtt_connect() {
-      if (!client.connect(SETTINGS.hostname, SETTINGS.mqtt_key ,SETTINGS.mqtt_secret)) {
-        if (millis() - previousMQTTReconnect > 3000) {
-          previousMQTTReconnect = millis();
-          yield();
-          client.connect(SETTINGS.hostname);
-          Serial.print("mqtt-connecting...");
+      if (WiFi.status() == WL_CONNECTED) {
+        if (SETTINGS.mqtt_enabled) {
+          if (!client.connect(SETTINGS.hostname, SETTINGS.mqtt_key ,SETTINGS.mqtt_secret)) {
+            if (millis() - previousMQTTReconnect > 3000) {
+              previousMQTTReconnect = millis();
+              yield();
+              client.connect(SETTINGS.hostname);
+              //Serial.print("mqtt-connecting...");
+              SendLog(" ERROR: mqtt connecting...");
+            }
+          }
+          else {
+            for(int n = 0; n < SETTINGS.IO_num_configured; n++) { // narocim se na IO porte!!!
+              client.subscribe(SETTINGS.IO_ident[n]);
+            }
+          }
         }
       }
-      else {
-        for(int n = 0; n < SETTINGS.IO_num_configured; n++) { // narocim se na IO porte!!!
-          client.subscribe(SETTINGS.IO_ident[n]);
-        }
-      }
-      
-    //-------------
-//      Serial.print("\nconnecting...");
-//      while (!client.connect("arduino", "try", "try")) {
-//        Serial.print(".");
-//        delay(1000);
-//      }
-//      Serial.println("\nconnected!");
     }
 
     void mqtt_loop() {
-      if (SETTINGS.mqtt_server_enabled) {
+      if (SETTINGS.mqtt_enabled) {
         client.loop();
         delay(10);  // <- fixes some issues with WiFi stability
         if (!client.connected()) {
           mqtt_connect();
-        }
+        }  
       }
     }
     
@@ -1992,196 +2201,490 @@
       }
     }
 
-    void mqtt_send_data() {
-      if (SETTINGS.mqtt_server_enabled) {
-        for (int n = 0; n < SETTINGS.IO_num_configured; n++) {
-          if (SETTINGS.IO_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-            char myfloat_in_Char[8];
-            String MyTopic = SETTINGS.IO_ident[n] + String("-state");
-            dtostrf(digitalRead(SETTINGS.IO_pin[n]), 6, 2, myfloat_in_Char); 
-            client.publish(MyTopic.c_str(), myfloat_in_Char);
-          }
-        }
-        if (SETTINGS.DS18B20_pin != Not_used_pin_number) { // ce je pin=100 potem je disabled
-          for (int n = 0; n < SETTINGS.DS18B20_num_configured; n++) {
-            char myfloat_in_Char[8];
-            dtostrf(DS18B20_All_Sensor_Values[n], 6, 2, myfloat_in_Char); 
-            client.publish(SETTINGS.DS18B20_ident[n], myfloat_in_Char);
-          }
-        }
-        for (int n = 0; n < SETTINGS.DHT_num_configured; n++) {
-          if (SETTINGS.DHT_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-            char myfloat_in_Char[8];
-            String MyTopic = SETTINGS.DHT_ident[n] + String("-temperature");
-            dtostrf(DHT_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char); 
-            client.publish(MyTopic.c_str(), myfloat_in_Char);
-            MyTopic = SETTINGS.DHT_ident[n] + String("-humidity");
-            dtostrf(DHT_All_Sensor_Values_Hum[n], 6, 2, myfloat_in_Char); 
-            client.publish(MyTopic.c_str(), myfloat_in_Char);
-          }
-        }
-        for (int n = 0; n < SETTINGS.BME280_num_configured; n++) {
-          if (SETTINGS.BME280_pin_sda[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-            char myfloat_in_Char[8];
-            dtostrf(BME280_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char);
-            String MyTopic = SETTINGS.BME280_ident[n] + String("-temperature");
-            client.publish(MyTopic.c_str(), myfloat_in_Char);
-            dtostrf(BME280_All_Sensor_Values_Hum[n], 6, 2, myfloat_in_Char);
-            MyTopic = SETTINGS.BME280_ident[n] + String("-humidity"); 
-            client.publish(MyTopic.c_str(), myfloat_in_Char);
-            dtostrf(BME280_All_Sensor_Values_Press[n], 6, 2, myfloat_in_Char);
-            MyTopic = SETTINGS.BME280_ident[n] + String("-pressure");
-            client.publish(MyTopic.c_str(), myfloat_in_Char);
-          }
-        }
-        for (int n = 0; n < SETTINGS.MAX6675_num_configured; n++) {
-          if (SETTINGS.MAX6675_pin_clk[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-            char myfloat_in_Char[8];
-            dtostrf(MAX6675_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char);
-            client.publish(SETTINGS.MAX6675_ident[n], myfloat_in_Char);
-          }
-        }
-        for (int n = 0; n < SETTINGS.Ultrasonic_num_configured; n++) {
-          if (SETTINGS.Ultrasonic_pin_trigger[n] != Not_used_pin_number) {
-            char myfloat_in_Char[8];
-            dtostrf(Ultrasonic_All_Sensor_Values_Distance[n], 6, 2, myfloat_in_Char);
-            client.publish(SETTINGS.Ultrasonic_ident[n], myfloat_in_Char);
-          }
+    void mqtt_send_log(String log_msg) {
+      if (WiFi.status() == WL_CONNECTED) {
+        if (SETTINGS.mqtt_enabled) {
+          client.publish("system/log", log_msg);
         }
       }
     }
 
-    String css_string() {
-      String css;
-      css += "<style>";
-      css += "@importurl(http://fonts.googleapis.com/css?family=Roboto:400,500,700,300,100);";
-      css += "html{";
-      css += "font-family:'Roboto',helvetica,arial,sans-serif;";
-      css += "text-rendering:optimizeLegibility;";
-      css += "font-size:100%!important;";
-      css += "font-weight:400!important;";
-      css += "}";
-      css += ".f9{";
-      css += "max-width: 95%;";
-      css += "background: #FAFAFA;";
-      css += "padding: 10px;";
-      css += "margin: 10pxauto;";
-      css += "box-shadow: 1px 1px 25px rgba(0,0,0,0.35);";
-      css += "border-radius:10px;";
-      css += "border: 3px solid #305A72;";
-      css += "}";
-      css += ".f9ul{";
-      css += "padding:0;";
-      css += "margin:0;";
-      css += "list-style:none;";
-      css += "}";
-      css += ".f9ulli{";
-      css += "display:block;";
-      css += "margin-bottom:10px;";
-      css += "min-height:35px;";
-      css += "}";
-      css += ".f9ulli.field-style{";
-      css += "box-sizing:border-box;";
-      css += "-webkit-box-sizing:border-box;";
-      css += "-moz-box-sizing:border-box;";
-      css += "padding: 8px;";
-      css += "outline: none;";
-      css += "border: 1px solid #B0CFE0;";
-      css += "}.f9ulli.field-style:focus{";
-      css += "box-shadow:0 0 5px #B0CFE0;";
-      css += "border: 1px solid #B0CFE0;";
-      css += "}";
-      css += ".f9ulli.field-split{";
-      css += "font-size:100%;";
-      css += "}";
-      css += ".f9ulli.field-full{";
-      css += "width:100%;";
-      css += "}";
-      css += ".f9ulliinput.align-left{";
-      css += "float:left;";
-      css += "}";
-      css += ".f9ulliinput.align-right{";
-      css += "float:right;";
-      css += "}";
-      css += ".f9ullitextarea{";
-      css += "width:100%;";
-      css += "height:100px;";
-      css += "}";
-      css += ".g{";
-      css += "-moz-box-shadow: inset 0px 1px 0px 0px #3985B1;";
-      css += "-webkit-box-shadow: inset 0px 1px 0px 0px #3985B1;";
-      css += "box-shadow:inset 0px 1px 0px 0px #3985B1;";
-      css += "background-color: #216288;";
-      css += "border: 1px solid #17445E;";
-      css += "display: inline-block;";
-      css += "cursor: pointer;";
-      css += "color: #FFFFFF;";
-      css += "padding: 8px 18px;";
-      css += "text-decoration: none;";
-      css += "font: 12px Arial,Helvetica,sans-serif;";
-      css += "width:32%;";
-      css += "height:8%;";
-      css += "}";
-      css += "#rtdiv{";
-      css += "width:100%;";
-      css += "}";
-      css += ".cloud{";
-      css += "background: #F1F1F1;";
-      css += "border-radius: 0.4em;";
-      css += "-moz-border-radius:0.4em;";
-      css += "-webkit-border-radius:0.4em;";
-      css += "/*color:#ffffff;*/";
-      css += "color:#333;";
-      css += "display:inline-block;";
-      css += "/*line-height:1.6em;*/";
-      css += "margin-right:5px;";
-      css += "text-align:center;";
-      css += "min-width:10.1%;";
-      css += "margin-bottom:10px;";
-      css += "border: 1px solid #B0CFE0;";
-      css += "padding: 3px 3px;";
-      css += "}";
-      css += ".f9ulliinput[type='submit'],{";
-      css += "-moz-box-shadow: inset 0px 1px 0px 0px #3985B1;";
-      css += "-webkit-box-shadow: inset 0px 1px 0px 0px #3985B1;";
-      css += "box-shadow: inset 0px 1px 0px 0px #3985B1;";
-      css += "background-color: #216288;";
-      css += "border: 1px solid #17445E;";
-      css += "display:inline-block;";
-      css += "cursor:pointer;";
-      css += "color:#FFFFFF;";
-      css += "padding: 8px 18px;";
-      css += "text-decoration:none;";
-      css += "font: 12px Arial,Helvetica,sans-serif;";
-      css += "}";
-      css += ".f9ulliinput[type='button']:hover,";
-      css += ".f9ulliinput[type='submit']:hover{";
-      css += "background:linear-gradient(tobottom,#2D77A25%,#337DA8100%);";
-      css += "background-color:#28739E;";
-      css += "}";
-      css += "table{";
-      css += "border: 1px solid #B0CFE0;";
-      css += "color: #333;";
-      css += "width: 100%;";
-      css += "margin-bottom: 10px;";
-      css += "}";
-      css += "td,th{";
-      css += "border: 1px solid transparent;";
-      css += "height:8%;";
-      css += "transition: all 0.3s;";
-      css += "}";
-      css += "th{";
-      css += "background:#DFDFDF;";
-      css += "font-weight:bold;";
-      css += "}";
-      css += "td{";
-      css += "background:#FAFAFA;";
-      css += "text-align:center;";
-      css += "}";
-      css += "tr:nth-child(even)td{background: #F1F1F1;}";
-      css += "tr:nth-child(odd)td{background: #FEFEFE;}";
-      css += "trtd:hover{background:#666;color: #FFF;}";
-      css += "}";
-      css += "</style>";
-      return css;
+
+    void mqtt_send_data() {
+      if (WiFi.status() == WL_CONNECTED) {
+        if (SETTINGS.mqtt_enabled) {
+          if (millis() - previousMQTTInterval >= SETTINGS.mqtt_interval * 1000) {
+            previousMQTTInterval = millis();
+            for (int n = 0; n < SETTINGS.IO_num_configured; n++) {
+              if (SETTINGS.IO_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
+                char myfloat_in_Char[8];
+                String MyTopic = SETTINGS.IO_ident[n] + String("/state");
+                dtostrf(digitalRead(SETTINGS.IO_pin[n]), 6, 2, myfloat_in_Char); 
+                client.publish(MyTopic.c_str(), myfloat_in_Char);
+              }
+            }
+            if (SETTINGS.DS18B20_pin != Not_used_pin_number) { // ce je pin=100 potem je disabled
+              for (int n = 0; n < SETTINGS.DS18B20_num_configured; n++) {
+                if (!isnan(DS18B20_All_Sensor_Values[n])) {
+                  char myfloat_in_Char[8];
+                  String MyTopic = SETTINGS.DS18B20_ident[n] + String("/temperature");
+                  dtostrf(DS18B20_All_Sensor_Values[n], 6, 2, myfloat_in_Char); 
+                  client.publish(MyTopic.c_str(), myfloat_in_Char);
+                }
+              }
+            }
+            for (int n = 0; n < SETTINGS.DHT_num_configured; n++) {
+              if (SETTINGS.DHT_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
+                if (!isnan(DHT_All_Sensor_Values_Temp[n]) && !isnan(DHT_All_Sensor_Values_Hum[n])) {
+                  char myfloat_in_Char[8];
+                  String MyTopic = SETTINGS.DHT_ident[n] + String("/temperature");
+                  dtostrf(DHT_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char); 
+                  client.publish(MyTopic.c_str(), myfloat_in_Char);
+                  MyTopic = SETTINGS.DHT_ident[n] + String("/humidity");
+                  dtostrf(DHT_All_Sensor_Values_Hum[n], 6, 2, myfloat_in_Char); 
+                  client.publish(MyTopic.c_str(), myfloat_in_Char);
+                  MyTopic = SETTINGS.DHT_ident[n] + String("/heat");
+                  dtostrf(DHT_All_Sensor_Values_Heat[n], 6, 2, myfloat_in_Char); 
+                  client.publish(MyTopic.c_str(), myfloat_in_Char);
+                  MyTopic = SETTINGS.DHT_ident[n] + String("/dew");
+                  dtostrf(DHT_All_Sensor_Values_Dew[n], 6, 2, myfloat_in_Char); 
+                  client.publish(MyTopic.c_str(), myfloat_in_Char);
+                }
+              }
+            }
+            for (int n = 0; n < SETTINGS.BME280_num_configured; n++) {
+              if (SETTINGS.BME280_pin_sda[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
+                if (!isnan(BME280_All_Sensor_Values_Temp[n])) {
+                  char myfloat_in_Char[8];
+                  dtostrf(BME280_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char);
+                  String MyTopic = SETTINGS.BME280_ident[n] + String("/temperature");
+                  client.publish(MyTopic.c_str(), myfloat_in_Char);
+                  dtostrf(BME280_All_Sensor_Values_Hum[n], 6, 2, myfloat_in_Char);
+                  MyTopic = SETTINGS.BME280_ident[n] + String("/humidity"); 
+                  client.publish(MyTopic.c_str(), myfloat_in_Char);
+                  dtostrf(BME280_All_Sensor_Values_Press[n], 6, 2, myfloat_in_Char);
+                  MyTopic = SETTINGS.BME280_ident[n] + String("/pressure");
+                  client.publish(MyTopic.c_str(), myfloat_in_Char);
+                  dtostrf(BME280_All_Sensor_Values_Heat[n], 6, 2, myfloat_in_Char);
+                  MyTopic = SETTINGS.BME280_ident[n] + String("/heat");
+                  client.publish(MyTopic.c_str(), myfloat_in_Char);
+                  dtostrf(BME280_All_Sensor_Values_Dew[n], 6, 2, myfloat_in_Char);
+                  MyTopic = SETTINGS.BME280_ident[n] + String("/dew");
+                  client.publish(MyTopic.c_str(), myfloat_in_Char);
+                }
+              }
+            }
+            for (int n = 0; n < SETTINGS.MAX6675_num_configured; n++) {
+              if (SETTINGS.MAX6675_pin_clk[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
+                if (!isnan(MAX6675_All_Sensor_Values_Temp[n])) {
+                  char myfloat_in_Char[8];
+                  dtostrf(MAX6675_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char);
+                  String MyTopic = SETTINGS.MAX6675_ident[n] + String("/temperature");
+                  client.publish(MyTopic.c_str(), myfloat_in_Char);
+                }
+              }
+            }
+            for (int n = 0; n < SETTINGS.Ultrasonic_num_configured; n++) {
+              if (SETTINGS.Ultrasonic_pin_trigger[n] != Not_used_pin_number) {
+                char myfloat_in_Char[8];
+                dtostrf(Ultrasonic_All_Sensor_Values_Distance[n], 6, 2, myfloat_in_Char);
+                String MyTopic = SETTINGS.Ultrasonic_ident[n] + String("/distance");
+                client.publish(MyTopic.c_str(), myfloat_in_Char);
+              }
+            }
+          }
+        }
+      }
     }
+    
+    String http_data_collector_config(void) {
+      String html = "";
+      for(int n = 0; n < SETTINGS.data_collector_num_configured; n++) {
+        if (SETTINGS.data_collector_type[n] == 1) {
+          html += "<tr><td>" + String(n) + "</td><td>influxdb_tcp</td><td>" + String(SETTINGS.data_collector_host[n]) + "</td><td>" + String(SETTINGS.data_collector_port[n]) + "</td><td>" + String(SETTINGS.data_collector_push_interval[n]) + "</td><td>" + String(SETTINGS.data_collector_db_username[n]) + "</td><td>" + String(SETTINGS.data_collector_db_password[n]) + "</td></tr>"; 
+        }
+        if (SETTINGS.data_collector_type[n] == 2) {
+          html += "<tr><td>" + String(n) + "</td><td>carbon_udp</td><td>" + String(SETTINGS.data_collector_host[n]) + "</td><td>" + String(SETTINGS.data_collector_port[n]) + "</td><td>" + String(SETTINGS.data_collector_push_interval[n]) + "</td><td>" + String(SETTINGS.data_collector_db_username[n]) + "</td><td>" + String(SETTINGS.data_collector_db_password[n]) + "</td></tr>"; 
+        }
+        if (SETTINGS.data_collector_type[n] == 3) {
+          html += "<tr><td>" + String(n) + "</td><td>redis_tcp</td><td>" + String(SETTINGS.data_collector_host[n]) + "</td><td>" + String(SETTINGS.data_collector_port[n]) + "</td><td>" + String(SETTINGS.data_collector_push_interval[n]) + "</td><td>" + String(SETTINGS.data_collector_db_username[n]) + "</td><td>" + String(SETTINGS.data_collector_db_password[n]) + "</td></tr>"; 
+        }
+      }    
+      return html;
+    }
+
+    void http_data_collector_remove_client() {
+      if (SETTINGS.data_collector_num_configured > 0) {
+        SETTINGS.data_collector_num_configured--; 
+      }
+      String html = BackURLSystemSettings;
+      server.send(200, "text/html", html);
+    }
+
+    void data_collector_send_data() {
+      for(int x = 0; x < SETTINGS.data_collector_num_configured; x++) {
+        if (millis() - previousDataCollector[x] >= SETTINGS.data_collector_push_interval[x] * 1000) {
+          previousDataCollector[x] = millis();
+          String InfluxDataStructure = "";
+          String CarbonDataStructure = "";
+          String RedisDataStructure = "";         
+          if ( SETTINGS.data_collector_type[x] == 1 ) {
+            InfluxDataStructure += "voltage,host=" + String(SETTINGS.hostname) + ",name=system value=" + String((float)ESP.getVcc()/890) + "\n";
+            InfluxDataStructure += "uptime,host=" + String(SETTINGS.hostname) + ",name=system value=" + String((unsigned long)millis()) + "\n";
+            InfluxDataStructure += "wifi,host=" + String(SETTINGS.hostname) + ",name=system value=" + String(WiFi.RSSI()) + "\n";
+            InfluxDataStructure += "freeheap,host=" + String(SETTINGS.hostname) + ",name=system value=" + String(ESP.getFreeHeap()) + "\n"; 
+            send_to_influxdb(InfluxDataStructure, x);
+          }
+          else if ( SETTINGS.data_collector_type[x] == 2 ) {
+            CarbonDataStructure += String(SETTINGS.hostname) + ".system.voltage " + String((float)ESP.getVcc()/890) + " " + now() + "\n";
+            CarbonDataStructure += String(SETTINGS.hostname) + ".system.uptime " + String((unsigned long)millis()) + " " + now() + "\n";
+            CarbonDataStructure += String(SETTINGS.hostname) + ".system.wifi " + String(WiFi.RSSI()) + " " + now() + "\n";
+            CarbonDataStructure += String(SETTINGS.hostname) + ".system.freeheap " + String(ESP.getFreeHeap()) + " " + now() + "\n";
+            send_to_carbon(CarbonDataStructure, x);
+          }
+          else if (SETTINGS.data_collector_type[x] == 3) {
+            String RedisTmpString = ""; 
+            RedisDataStructure += String("*3\r\n") + "$5\r\n" + "LPUSH\r\n";
+            RedisTmpString += "{\"system\": {\"voltage\": \"" + String((float)ESP.getVcc()/890)+ "\", ";
+            RedisTmpString += "\"uptime\": \"" + String((unsigned long)millis()) + "\", ";
+            RedisTmpString += "\"wifi\": \"" + String(WiFi.RSSI()) + "\", ";
+            RedisTmpString += "\"freeheap\": \"" + String(ESP.getFreeHeap()) + "\"}}";
+            RedisDataStructure += "$" + String(strlen(SETTINGS.hostname)) + "\r\n" + String(SETTINGS.hostname) + "\r\n" + "$" + String(RedisTmpString.length()) + "\r\n" + RedisTmpString + "\r\n";
+            send_to_redis(RedisDataStructure, x);
+          }
+          InfluxDataStructure = "";
+          CarbonDataStructure = "";
+          RedisDataStructure = "";
+          for (int n = 0; n < SETTINGS.IO_num_configured; n++) {
+            if (SETTINGS.IO_pin[n] != Not_used_pin_number) {
+              InfluxDataStructure += "state,host=" + String(SETTINGS.hostname) + ",name=" + String(SETTINGS.IO_ident[n]) + " value=" + String(digitalRead(SETTINGS.IO_pin[n])) + "\n";
+              CarbonDataStructure += String(SETTINGS.hostname) + "." + String(SETTINGS.IO_ident[n]) + ".state " + String(digitalRead(SETTINGS.IO_pin[n])) + " " + now() + "\n";
+              if ( SETTINGS.data_collector_type[x] == 3 ) {
+                redis_data_prepair(String (SETTINGS.IO_ident[n]), "state", String(digitalRead(SETTINGS.IO_pin[n])), x);
+              }
+            }
+          }
+          if (SETTINGS.IO_num_configured  > 0) {
+            if ( SETTINGS.data_collector_type[x] == 1 ) {
+              send_to_influxdb(InfluxDataStructure, x);
+            }
+            else if ( SETTINGS.data_collector_type[x] == 2 ) {
+              send_to_carbon(CarbonDataStructure, x);
+            }
+            InfluxDataStructure = "";
+            CarbonDataStructure = "";
+          }
+          if (SETTINGS.DS18B20_pin != Not_used_pin_number) {
+            for (int n = 0; n < SETTINGS.DS18B20_num_configured; n++) {
+              if (!isnan(DS18B20_All_Sensor_Values[n])) {
+                InfluxDataStructure += "temperature,host=" + String(SETTINGS.hostname) + ",name=" + String(SETTINGS.DS18B20_ident[n]) + " value=" + String(DS18B20_All_Sensor_Values[n]) + "\n";
+                CarbonDataStructure += String(SETTINGS.hostname) + "." + String(SETTINGS.DS18B20_ident[n]) + ".temperature " + String(DS18B20_All_Sensor_Values[n]) + " " + now() + "\n";
+                if ( SETTINGS.data_collector_type[x] == 3 ) {
+                  redis_data_prepair(String (SETTINGS.DS18B20_ident[n]), "temperature", String(DS18B20_All_Sensor_Values[n]), x);
+                  yield();
+                }
+              }
+            }
+          }
+          if (SETTINGS.DS18B20_num_configured  > 0) {
+            if ( SETTINGS.data_collector_type[x] == 1 ) {
+              send_to_influxdb(InfluxDataStructure, x);
+            }
+            else if ( SETTINGS.data_collector_type[x] == 2 ) {
+              send_to_carbon(CarbonDataStructure, x);
+            }
+            InfluxDataStructure = "";
+            CarbonDataStructure = "";
+          }
+          for (int n = 0; n < SETTINGS.DHT_num_configured; n++) {
+            if (SETTINGS.DHT_pin[n] != Not_used_pin_number) {
+              if (!isnan(DHT_All_Sensor_Values_Temp[n]) && !isnan(DHT_All_Sensor_Values_Hum[n])) {
+                InfluxDataStructure += "temperature,host=" + String(SETTINGS.hostname) + ",name=" + String(SETTINGS.DHT_ident[n]) + " value=" + String(DHT_All_Sensor_Values_Temp[n]) + "\n";
+                InfluxDataStructure += "humidity,host=" + String(SETTINGS.hostname) + ",name=" + String(SETTINGS.DHT_ident[n]) + " value=" + String(DHT_All_Sensor_Values_Hum[n]) + "\n";
+                InfluxDataStructure += "heatindex,host=" + String(SETTINGS.hostname) + ",name=" + String(SETTINGS.DHT_ident[n]) + " value=" + String(DHT_All_Sensor_Values_Heat[n]) + "\n";
+                InfluxDataStructure += "dewpoint,host=" + String(SETTINGS.hostname) + ",name=" + String(SETTINGS.DHT_ident[n]) + " value=" + String(DHT_All_Sensor_Values_Dew[n]) + "\n";
+                CarbonDataStructure += String(SETTINGS.hostname) + "." + String(SETTINGS.DHT_ident[n]) + ".temperature " + String(DHT_All_Sensor_Values_Temp[n]) + " " + now() + "\n";
+                CarbonDataStructure += String(SETTINGS.hostname) + "." + String(SETTINGS.DHT_ident[n]) + ".pressure " + String(DHT_All_Sensor_Values_Hum[n]) + " " + now() + "\n";
+                CarbonDataStructure += String(SETTINGS.hostname) + "." + String(SETTINGS.DHT_ident[n]) + ".heat " + String(DHT_All_Sensor_Values_Heat[n]) + " " + now() + "\n";
+                CarbonDataStructure += String(SETTINGS.hostname) + "." + String(SETTINGS.DHT_ident[n]) + ".dew " + String(DHT_All_Sensor_Values_Dew[n]) + " " + now() + "\n";
+                if ( SETTINGS.data_collector_type[x] == 3 ) {
+                  String RedisTmpString = ""; 
+                  RedisDataStructure = String("*3\r\n") + "$5\r\n" + "LPUSH\r\n";
+                  RedisTmpString += "{\"" + String(SETTINGS.DHT_ident[n]) + "\": {\"temperature\": \"" + String(DHT_All_Sensor_Values_Temp[n]) + "\", ";
+                  RedisTmpString += "\"humidity\": \"" + String(DHT_All_Sensor_Values_Hum[n]) + "\", ";
+                  RedisTmpString += "\"heatindex\": \"" + String(DHT_All_Sensor_Values_Heat[n]) + "\", ";
+                  RedisTmpString += "\"dewpoint\": \"" + String(DHT_All_Sensor_Values_Dew[n]) + "\"}}";
+                  RedisDataStructure += "$" + String(strlen(SETTINGS.hostname)) + "\r\n" + String(SETTINGS.hostname) + "\r\n" + "$" + String(RedisTmpString.length()) + "\r\n" + RedisTmpString + "\r\n";
+                  send_to_redis(RedisDataStructure, x);
+                  yield();
+                }
+              }   
+            }
+          }
+          if (SETTINGS.DHT_num_configured  > 0) {
+            if ( SETTINGS.data_collector_type[x] == 1 ) {
+              send_to_influxdb(InfluxDataStructure, x);
+            }
+            else if ( SETTINGS.data_collector_type[x] == 2 ) {
+              send_to_carbon(CarbonDataStructure, x);
+            }
+            InfluxDataStructure = "";
+            CarbonDataStructure = "";
+          }
+          for (int n = 0; n < SETTINGS.BME280_num_configured; n++) {
+            if (SETTINGS.BME280_pin_sda[n] != Not_used_pin_number) {
+              if (!isnan(BME280_All_Sensor_Values_Temp[n])) {
+                InfluxDataStructure += "temperature,host=" + String(SETTINGS.hostname) + ",name=" + String(SETTINGS.BME280_ident[n]) + " value=" + String(BME280_All_Sensor_Values_Temp[n]) + "\n";
+                InfluxDataStructure += "humidity,host=" + String(SETTINGS.hostname) + ",name=" + String(SETTINGS.BME280_ident[n]) + " value=" + String(BME280_All_Sensor_Values_Hum[n]) + "\n";
+                InfluxDataStructure += "pressure,host=" + String(SETTINGS.hostname) + ",name=" + String(SETTINGS.BME280_ident[n]) + " value=" + String(BME280_All_Sensor_Values_Press[n]) + "\n";
+                InfluxDataStructure += "heatindex,host=" + String(SETTINGS.hostname) + ",name=" + String(SETTINGS.BME280_ident[n]) + " value=" + String(BME280_All_Sensor_Values_Heat[n]) + "\n";
+                InfluxDataStructure += "dewpoint,host=" + String(SETTINGS.hostname) + ",name=" + String(SETTINGS.BME280_ident[n]) + " value=" + String(BME280_All_Sensor_Values_Dew[n]) + "\n";     
+                CarbonDataStructure += String(SETTINGS.hostname) + "." + String(SETTINGS.BME280_ident[n]) + ".temperature " + String(BME280_All_Sensor_Values_Temp[n]) + " " + now() + "\n";
+                CarbonDataStructure += String(SETTINGS.hostname) + "." + String(SETTINGS.BME280_ident[n]) + ".humidity " + String(BME280_All_Sensor_Values_Hum[n]) + " " + now() + "\n";
+                CarbonDataStructure += String(SETTINGS.hostname) + "." + String(SETTINGS.BME280_ident[n]) + ".pressure " + String(BME280_All_Sensor_Values_Press[n]) + " " + now() + "\n";
+                CarbonDataStructure += String(SETTINGS.hostname) + "." + String(SETTINGS.BME280_ident[n]) + ".heatindex " + String(BME280_All_Sensor_Values_Heat[n]) + " " + now() + "\n";
+                CarbonDataStructure += String(SETTINGS.hostname) + "." + String(SETTINGS.BME280_ident[n]) + ".dewpoint " + String(BME280_All_Sensor_Values_Dew[n]) + " " + now() + "\n";
+                if ( SETTINGS.data_collector_type[x] == 3 ) {
+                  String RedisTmpString = ""; 
+                  RedisDataStructure = String("*3\r\n") + "$5\r\n" + "LPUSH\r\n";
+                  RedisTmpString += "{\"" + String(SETTINGS.BME280_ident[n]) + "\": {\"temperature\": \"" + String(BME280_All_Sensor_Values_Temp[n]) + "\", ";
+                  RedisTmpString += "\"humidity\": \"" + String(BME280_All_Sensor_Values_Hum[n]) + "\", ";
+                  RedisTmpString += "\"heatindex\": \"" + String(BME280_All_Sensor_Values_Heat[n]) + "\", ";
+                  RedisTmpString += "\"dewpoint\": \"" + String(BME280_All_Sensor_Values_Dew[n]) + "\"}}";
+                  RedisDataStructure += "$" + String(strlen(SETTINGS.hostname)) + "\r\n" + String(SETTINGS.hostname) + "\r\n" + "$" + String(RedisTmpString.length()) + "\r\n" + RedisTmpString + "\r\n";
+                  send_to_redis(RedisDataStructure, x);
+                  yield();
+                }
+              }
+            }
+          }
+          if (SETTINGS.BME280_num_configured  > 0) {
+            if ( SETTINGS.data_collector_type[x] == 1 ) {
+              send_to_influxdb(InfluxDataStructure, x);
+            }
+            else if ( SETTINGS.data_collector_type[x] == 2 ) {
+              send_to_carbon(CarbonDataStructure, x);
+            }
+            InfluxDataStructure = "";
+            CarbonDataStructure = "";
+          }
+          for (int n = 0; n < SETTINGS.MAX6675_num_configured; n++) {
+            if (SETTINGS.MAX6675_pin_clk[n] != Not_used_pin_number) {
+              if (!isnan(MAX6675_All_Sensor_Values_Temp[n])) {
+                InfluxDataStructure += "temperature,host=" + String(SETTINGS.hostname) + ",name=" + String(SETTINGS.MAX6675_ident[n]) + " value=" + String(MAX6675_All_Sensor_Values_Temp[n]) + "\n";
+                CarbonDataStructure += String(SETTINGS.hostname) + "." + String(SETTINGS.MAX6675_ident[n]) + ".temperature " + String(MAX6675_All_Sensor_Values_Temp[n]) + " " + now() + "\n";
+                if ( SETTINGS.data_collector_type[x] == 3 ) {
+                  redis_data_prepair(String (SETTINGS.MAX6675_ident[n]), "temperature", String(MAX6675_All_Sensor_Values_Temp[n]), x);
+                  yield();
+                }
+              }
+            }
+          }
+          if (SETTINGS.MAX6675_num_configured  > 0) {
+            if ( SETTINGS.data_collector_type[x] == 1 ) {
+              send_to_influxdb(InfluxDataStructure, x);
+            }
+            else if ( SETTINGS.data_collector_type[x] == 2 ) {
+              send_to_carbon(CarbonDataStructure, x);
+            }
+            InfluxDataStructure = "";
+            CarbonDataStructure = "";
+          }
+          for (int n = 0; n < SETTINGS.Ultrasonic_num_configured; n++) {
+            if (SETTINGS.Ultrasonic_pin_trigger[n] != Not_used_pin_number) {
+              InfluxDataStructure += "distance,host=" + String(SETTINGS.hostname) + ",name=" + String(SETTINGS.Ultrasonic_ident[n]) + " value=" + String(Ultrasonic_All_Sensor_Values_Distance[n]) + "\n";
+              CarbonDataStructure += String(SETTINGS.hostname) + "." + String(SETTINGS.Ultrasonic_ident[n]) + ".distance " + String(Ultrasonic_All_Sensor_Values_Distance[n]) + " " + now() + "\n";
+              if ( SETTINGS.data_collector_type[x] == 3 ) {
+                redis_data_prepair(String (SETTINGS.Ultrasonic_ident[n]), "distance", String(Ultrasonic_All_Sensor_Values_Distance[n]), x);
+                yield();
+              }
+            }
+          }
+          if (SETTINGS.Ultrasonic_num_configured > 0) {
+            if ( SETTINGS.data_collector_type[x] == 1 ) {
+              send_to_influxdb(InfluxDataStructure, x);
+            }
+            else if ( SETTINGS.data_collector_type[x] == 2 ) {
+              send_to_carbon(CarbonDataStructure, x);
+            }
+            InfluxDataStructure = "";
+            CarbonDataStructure = "";
+          }
+        }
+      }
+    }
+    
+    void redis_data_prepair(String MetricIdent, String MetricType, String MetricValue, int x) {
+      String RedisTmpString = ""; 
+      String RedisDataStructure = "";
+      RedisDataStructure = String("*3\r\n") + "$5\r\n" + "LPUSH\r\n";
+      RedisTmpString += "{\"" + MetricIdent + "\": {\"" + MetricType + "\": \"" + MetricValue + "\"}}";
+      RedisDataStructure += "$" + String(strlen(SETTINGS.hostname)) + "\r\n" + String(SETTINGS.hostname) + "\r\n" + "$" + String(RedisTmpString.length()) + "\r\n" + RedisTmpString + "\r\n";
+      send_to_redis(RedisDataStructure, x);
+    }
+    
+    void send_to_redis(String content, int x) {
+      if (WiFi.status() == WL_CONNECTED) { 
+        if (!redis_client.connect(SETTINGS.data_collector_host[x], SETTINGS.data_collector_port[x])) {
+          SendLog(" ERROR: redis (" + String(SETTINGS.data_collector_host[x]) + ":" + String(SETTINGS.data_collector_port[x]) + ") connection failed.");
+          return;
+        }
+        yield();
+        redis_client.print(content);
+        redis_client.stop();
+        redis_client.flush();
+      }
+    }
+    
+    void send_to_influxdb(String content, int x) {
+      if (WiFi.status() == WL_CONNECTED) {
+        if (!influxdb_client.connect(SETTINGS.data_collector_host[x], SETTINGS.data_collector_port[x])) {
+          SendLog(" ERROR: influxdb (" + String(SETTINGS.data_collector_host[x]) + ":" + String(SETTINGS.data_collector_port[x]) + ") connection failed.");
+          return;
+        }
+        yield(); // <- fixes some issues with WiFi stability
+        if (SETTINGS.data_collector_db_username[x][0] != '\0' && SETTINGS.data_collector_db_password[x][0] != '\0' ) {
+          influxdb_client.print("POST /write?db=" + String(SETTINGS.data_collector_db_name[x]) + "&u=" + String(SETTINGS.data_collector_db_username[x]) + "&p=" + String(SETTINGS.data_collector_db_password[x]) + " HTTP/1.1\r\n");
+        }
+        else {
+          influxdb_client.print("POST /write?db=" + String(SETTINGS.data_collector_db_name[x]) + " HTTP/1.1\r\n");
+        }
+        influxdb_client.print("User-Agent: " + String(SETTINGS.hostname) + "/0.1\r\n");
+        influxdb_client.print("Host: localhost:" + String(SETTINGS.data_collector_port[x]) + "\r\n");
+        influxdb_client.print("Accept: */*\r\n");
+        influxdb_client.print("Content-Length: " + String(content.length()) + "\r\n");
+        influxdb_client.print("Content-Type: application/x-www-form-urlencoded\r\n");
+        influxdb_client.print("\r\n");
+        influxdb_client.print(content + "\r\n");
+        influxdb_client.stop();
+        influxdb_client.flush();
+//        yield();
+//        if (influxdb_client.available()) {
+//          String str = influxdb_client.readStringUntil('\r');
+//          //Serial.println(str);
+//          if (str.indexOf("200 OK")!=-1){
+//            //Serial.println("Influx Data upload to Server Success!");
+//          }
+//        }
+      }
+    }
+
+    void send_to_carbon (String msgtosend, int x) {
+      if (WiFi.status() == WL_CONNECTED) {
+        unsigned int msg_length = msgtosend.length();
+        byte* p = (byte*)malloc(msg_length);
+        memcpy(p, (char*) msgtosend.c_str(), msg_length);
+        udp.beginPacket(SETTINGS.data_collector_host[x], SETTINGS.data_collector_port[x]);
+        //udp.write(SETTINGS.hostname);
+        udp.write(p, msg_length);
+        udp.endPacket();
+        free(p);
+        yield();
+      }
+    }
+
+    void http_crash_info() {
+      String text;
+      text += "ResetInfo: " + String(ESP.getResetInfo()) + "<br>";
+      text += "BootMode: " + String(ESP.getBootMode()) + "<br>";
+      text += "BootVersion: " + String(ESP.getBootVersion()) + "<br>";
+      text += "SdkVersion: " + String(ESP.getSdkVersion()) + "<br>";
+      char tmp[8]; 
+      // Note that 'EEPROM.begin' method is reserving a RAM buffer
+      // The buffer size is SAVE_CRASH_EEPROM_OFFSET + SAVE_CRASH_SPACE_SIZE
+      EEPROM.begin(SAVE_CRASH_EEPROM_OFFSET + SAVE_CRASH_SPACE_SIZE);
+    
+      byte crashCounter = EEPROM.read(SAVE_CRASH_EEPROM_OFFSET + SAVE_CRASH_COUNTER);
+      if (crashCounter == 0)
+      {
+        text += "No any crashes saved";
+        server.send(200, "text/html", text);
+        yield();
+        return;
+      }
+    
+      text += "Crash information recovered from EEPROM<br>";
+      int16_t readFrom = SAVE_CRASH_EEPROM_OFFSET + SAVE_CRASH_DATA_SETS;
+      for (byte k = 0; k < crashCounter; k++)
+      {
+        uint32_t crashTime;
+        EEPROM.get(readFrom + SAVE_CRASH_CRASH_TIME, crashTime);
+        text += "Crash #" + String(k + 1) + " at " + String(crashTime) + "ms<br>";
+    
+        text += "Reason of restart: " + String(EEPROM.read(readFrom + SAVE_CRASH_RESTART_REASON)) + "<br>";
+        text += "Exception cause: " + String(EEPROM.read(readFrom + SAVE_CRASH_EXCEPTION_CAUSE)) + "<br>";
+    
+        uint32_t epc1, epc2, epc3, excvaddr, depc;
+        EEPROM.get(readFrom + SAVE_CRASH_EPC1, epc1);
+        EEPROM.get(readFrom + SAVE_CRASH_EPC2, epc2);
+        EEPROM.get(readFrom + SAVE_CRASH_EPC3, epc3);
+        EEPROM.get(readFrom + SAVE_CRASH_EXCVADDR, excvaddr);
+        EEPROM.get(readFrom + SAVE_CRASH_DEPC, depc);
+        sprintf(tmp, "epc1=0x%08x ", epc1);
+        text += tmp;
+        sprintf(tmp, "epc2=0x%08x ", epc2);
+        text += tmp;
+        sprintf(tmp, "epc3=0x%08x ", epc3);
+        text += tmp;
+        sprintf(tmp, "excvaddr=0x%08x ", excvaddr);
+        text += tmp;
+        sprintf(tmp, "depc=0x%08x ", depc);
+        text += tmp;       
+        text += "<br>";
+        uint32_t stackStart, stackEnd;
+        EEPROM.get(readFrom + SAVE_CRASH_STACK_START, stackStart);
+        EEPROM.get(readFrom + SAVE_CRASH_STACK_END, stackEnd);
+        text += ">>>stack>>><br>";
+        int16_t currentAddress = readFrom + SAVE_CRASH_STACK_TRACE;
+        int16_t stackLength = stackEnd - stackStart;
+        uint32_t stackTrace;
+        for (int16_t i = 0; i < stackLength; i += 0x10)
+        {
+          sprintf(tmp, "%08x ", stackStart + i);
+          text += tmp;
+          for (byte j = 0; j < 4; j++)
+          {
+            EEPROM.get(currentAddress, stackTrace);
+            sprintf(tmp, "%08x ", stackTrace);
+            text += tmp;
+            currentAddress += 4;
+            if (currentAddress - SAVE_CRASH_EEPROM_OFFSET > SAVE_CRASH_SPACE_SIZE)
+            {
+              text += "<br>Incomplete stack trace saved!";
+              goto eepromSpaceEnd;
+            }
+          }
+          text += "<br>";
+        }
+        eepromSpaceEnd:
+        text += "&lt&lt&ltstack<<<";
+        readFrom = readFrom + SAVE_CRASH_STACK_TRACE + stackLength;
+      }
+      int16_t writeFrom;
+      EEPROM.get(SAVE_CRASH_EEPROM_OFFSET + SAVE_CRASH_WRITE_FROM, writeFrom);
+      EEPROM.end();
+    
+      // is there free EEPROM space avialable to save data for next crash?
+      if (writeFrom + SAVE_CRASH_STACK_TRACE > SAVE_CRASH_SPACE_SIZE)
+      {
+        text += "<br>No more EEPROM space available to save crash information!<br>";
+      }
+      else
+      {
+        sprintf(tmp, "<br>EEPROM space available: 0x%04x bytes<br>", SAVE_CRASH_SPACE_SIZE - writeFrom);
+        text += tmp;
+      }
+      server.send(200, "text/html", text);
+      yield();
+    }
+      
+    void http_clear_crash_info() {
+      EEPROM.begin(SAVE_CRASH_EEPROM_OFFSET + SAVE_CRASH_SPACE_SIZE);
+      // clear the crash counter
+      EEPROM.write(SAVE_CRASH_EEPROM_OFFSET + SAVE_CRASH_COUNTER, 0);
+      EEPROM.end();
+      SendLog(" INFO: Crash info cleared.");
+      String html = BackURLSystemSettings;
+      server.send(200, "text/html", html);
+    }
+    
