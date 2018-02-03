@@ -15,7 +15,7 @@
     #include <NewPing.h>
     #include <MQTTClient.h>
     #include "EspSaveCrash.h"
-
+    
     static const char CSS[] PROGMEM =
     "<style>"
     "@import url(http://fonts.googleapis.com/css?family=Roboto:400,500,700,300,100);"
@@ -217,7 +217,7 @@
     unsigned int localPort = 2390;
     // default IP, povozijo ga nastavitve iz EEPROM-a
     IPAddress syslogServer(0, 0, 0, 0);
-    String Version = "20180107";
+    String Version = "20180302";
 
     // ntp
     time_t getNTPtime(void);
@@ -225,11 +225,9 @@
     //#define GMT +0 //timezone
         
     ADC_MODE(ADC_VCC);
-    boolean TurnOff60SoftAP;
     unsigned long wifi_connect_previous_millis = 0;
     
     ESP8266WebServer server(80);
-    //const char* host = "esp8266";
     const char* serverIndex = "<form method='POST' action='/update' enctype='multipart/form-data'><input type='file' name='update'><input type='submit' value='Update'></form>";
 
     // Tell it where to store your config data in EEPROM
@@ -369,10 +367,8 @@
 
     //mqtt
     WiFiClient MQTT_Client;        // http
-    MQTTClient client;
-    WiFiClient influxdb_client;
-    WiFiClient redis_client;
-    WiFiClient domoticz_client;    
+    MQTTClient mqtt_client;
+    
     // pins, 
     // ! pazi ob boot-u, normal mode: D8=LOW, D4=HIGH, D3=HIGH  
     // D0  = 16  = PWM Motor 3x
@@ -448,6 +444,7 @@
       server.begin();
       server.on("/", handle_root);
       server.on("/scan", http_WiFi_Scan);
+      server.on("/stat", http_Status);
       server.on("/clearcrash", http_clear_crash_info);
       server.on("/crashinfo", http_crash_info);
       server.on("/ntpupdate", init_ntp);
@@ -710,6 +707,17 @@
       }
     }
 
+    void http_Status() {
+      SendLog(" INFO: View status.");
+      String html = "<!DOCTYPE html><html><head>";
+      html += "<title>status</title>";  
+      html += "<meta charset=\"UTF-8\">\n";
+      html += "Wifi.status=";
+      html += String(WiFi.status());
+      html += "<br>";
+      server.send(200, "text/html", html);
+    }
+
     byte String_To_Byte(String MyString) {
       byte MyByte;
       char temp [25];
@@ -882,7 +890,6 @@
     void ConnectToWifi() {
       SendLog(" INFO: WiFi connecting ...");
       WiFi.hostname(String(SETTINGS.hostname)); 
-      TurnOff60SoftAP = true;
       WiFi.mode(WIFI_AP_STA); // AP & client mode
       /* You can remove the password parameter if you want the AP to be open. */
       WiFi.softAP(SETTINGS.ap_ssid, SETTINGS.ap_password);
@@ -921,6 +928,7 @@
         Serial.println(WiFi.localIP());       
       }
     }
+
 
     String urlencode(String str)
     {
@@ -1256,7 +1264,6 @@
 
     void handle_enable_ap_sta() {
       SendLog(" INFO: Soft AP enabled.");
-      TurnOff60SoftAP = false;
       WiFi.mode(WIFI_AP_STA);
       WiFi.softAP(SETTINGS.ap_ssid, SETTINGS.ap_password);
       //Serial.print("Soft AP enabled! ");
@@ -1497,7 +1504,7 @@
         html += "<table><tr><th colspan=\"9\">influxdb, carbon, redis settings</th></tr>";
         html += "<tr><th>#</th><th>type</th><th>hostname/ip</th><th>port</th><th>interval[sec]</th><th>db name</th><th>db username</th><th>db password</th></tr>";
         html += http_data_collector_config();
-        html += "<tr><td><form method='get' action='flxadd' ></td><td><select name=\"flxty\" ><option value=\"1\">influxdb_tcp</option><option value=\"2\">carbon_udp</option><option value=\"3\">redis_tcp</option></select></td><td>";
+        html += "<tr><td><form method='get' action='flxadd' ></td><td><select name=\"flxty\" ><option value=\"1\">influxdb_tcp</option><option value=\"4\">influxdb_udp</option><option value=\"2\">carbon_udp</option><option value=\"3\">redis_tcp</option></select></td><td>";
         html += "<input name='flxho' value='' maxlength='100' type='text' size='15'/></td><td>";
         html += "<input name='flxpo' value='' maxlength='6' type='text' size='6'/></td><td>";
         html += "<input name='flxin' value='' maxlength='6' type='text' type='text' size='6'/></td><td>";
@@ -1638,6 +1645,7 @@
         }
       }
       json += "\"wifi\": \"" + String(WiFi.RSSI()) + "\", ";
+      json += "\"wifi_status\": \"" + String(WiFi.status()) + "\", ";
       json += "\"uptime\": \"" + String((unsigned long)millis()) + "\", ";
       json += "\"freeheap\": \"" + String(ESP.getFreeHeap()) + "\", ";
       json += "\"vcc\": \"" + String((float)ESP.getVcc()/890) + "\"";
@@ -1978,17 +1986,17 @@
    
     // domoticz update client
     void domoticz_update(String url) {
-      if (WiFi.status() == WL_CONNECTED) { // da ne crash-ne ko izgubi AP connectivity
-        if (SETTINGS.domoticz_update_enabled) {
-          if (!domoticz_client.connect(SETTINGS.domoticz_ip, SETTINGS.domoticz_port)) {
-            SendLog(" ERROR: domoticz (" + String(SETTINGS.domoticz_ip) + ":" + String(SETTINGS.domoticz_port) + ") connection failed.");
-            return;
-          }
-          yield();
-          domoticz_client.print(String("GET ") + url + " HTTP/1.1\r\n" + "Host: " + SETTINGS.domoticz_ip + "\r\n" + "Connection: close\r\n\r\n");
-          domoticz_client.stop();
-          domoticz_client.flush();
+      WiFiClient domoticz_client;
+      domoticz_client.setTimeout(100);
+      if (SETTINGS.domoticz_update_enabled) {
+        if (!domoticz_client.connect(SETTINGS.domoticz_ip, SETTINGS.domoticz_port)) {
+          SendLog(" ERROR: domoticz (" + String(SETTINGS.domoticz_ip) + ":" + String(SETTINGS.domoticz_port) + ") connection failed.");
+          return;
         }
+        yield();
+        domoticz_client.print(String("GET ") + url + " HTTP/1.1\r\n" + "Host: " + SETTINGS.domoticz_ip + "\r\n" + "Connection: close\r\n\r\n");
+        domoticz_client.stop();
+        domoticz_client.flush();
       }
     }
 
@@ -2144,29 +2152,28 @@
 
 
     void mqtt_init() {
+      MQTT_Client.setTimeout(50);
       // Note: Local domain names (e.g. "Computer.local" on OSX) are not supported by Arduino.
       // You need to set the IP address directly.
-      client.begin(SETTINGS.mqtt_server, SETTINGS.mqtt_port, MQTT_Client);
-      client.onMessage(mqtt_receive_data);
+      mqtt_client.begin(SETTINGS.mqtt_server, SETTINGS.mqtt_port, MQTT_Client);
+      mqtt_client.onMessage(mqtt_receive_data);
       mqtt_connect();
     }
 
     void mqtt_connect() {
-      if (WiFi.status() == WL_CONNECTED) {
-        if (SETTINGS.mqtt_enabled) {
-          if (!client.connect(SETTINGS.hostname, SETTINGS.mqtt_key ,SETTINGS.mqtt_secret)) {
-            if (millis() - previousMQTTReconnect > 3000) {
-              previousMQTTReconnect = millis();
-              yield();
-              client.connect(SETTINGS.hostname);
-              //Serial.print("mqtt-connecting...");
-              SendLog(" ERROR: mqtt connecting...");
-            }
+      if (SETTINGS.mqtt_enabled) {
+        if (!mqtt_client.connect(SETTINGS.hostname, SETTINGS.mqtt_key ,SETTINGS.mqtt_secret)) {
+          if (millis() - previousMQTTReconnect > 3000) {
+            previousMQTTReconnect = millis();
+            yield();
+            mqtt_client.connect(SETTINGS.hostname, SETTINGS.mqtt_key ,SETTINGS.mqtt_secret);
+            //Serial.print("mqtt-connecting...");
+            SendLog(" ERROR: mqtt connecting...");
           }
-          else {
-            for(int n = 0; n < SETTINGS.IO_num_configured; n++) { // narocim se na IO porte!!!
-              client.subscribe(SETTINGS.IO_ident[n]);
-            }
+        }
+        else {
+          for(int n = 0; n < SETTINGS.IO_num_configured; n++) { // narocim se na IO porte!!!
+            mqtt_client.subscribe(SETTINGS.IO_ident[n]);
           }
         }
       }
@@ -2174,9 +2181,9 @@
 
     void mqtt_loop() {
       if (SETTINGS.mqtt_enabled) {
-        client.loop();
+        mqtt_client.loop();
         delay(10);  // <- fixes some issues with WiFi stability
-        if (!client.connected()) {
+        if (!mqtt_client.connected()) {
           mqtt_connect();
         }  
       }
@@ -2202,95 +2209,99 @@
     }
 
     void mqtt_send_log(String log_msg) {
-      if (WiFi.status() == WL_CONNECTED) {
-        if (SETTINGS.mqtt_enabled) {
-          client.publish("system/log", log_msg);
-        }
+      if (SETTINGS.mqtt_enabled) {
+        String MyTopic = SETTINGS.hostname + String("/system/log");
+        mqtt_client.publish(MyTopic.c_str(), log_msg);
       }
     }
 
 
     void mqtt_send_data() {
-      if (WiFi.status() == WL_CONNECTED) {
-        if (SETTINGS.mqtt_enabled) {
-          if (millis() - previousMQTTInterval >= SETTINGS.mqtt_interval * 1000) {
-            previousMQTTInterval = millis();
-            for (int n = 0; n < SETTINGS.IO_num_configured; n++) {
-              if (SETTINGS.IO_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-                char myfloat_in_Char[8];
-                String MyTopic = SETTINGS.IO_ident[n] + String("/state");
-                dtostrf(digitalRead(SETTINGS.IO_pin[n]), 6, 2, myfloat_in_Char); 
-                client.publish(MyTopic.c_str(), myfloat_in_Char);
+      if (SETTINGS.mqtt_enabled) {
+        if (millis() - previousMQTTInterval >= SETTINGS.mqtt_interval * 1000) {
+          previousMQTTInterval = millis();
+          char myfloat_in_Char[8];
+          String MyTopic = SETTINGS.hostname + String("/system/voltage");
+          dtostrf((float)ESP.getVcc()/890, 6, 2, myfloat_in_Char); 
+          mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
+          MyTopic = SETTINGS.hostname + String("/system/uptime");
+          dtostrf((unsigned long)millis(), 6, 0, myfloat_in_Char); 
+          mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
+          MyTopic = SETTINGS.hostname + String("/system/wifi");
+          dtostrf(WiFi.RSSI(), 6, 2, myfloat_in_Char); 
+          mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);   
+          MyTopic = SETTINGS.hostname + String("/system/freeheap");
+          dtostrf(ESP.getFreeHeap(), 6, 0, myfloat_in_Char); 
+          mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);        
+          for (int n = 0; n < SETTINGS.IO_num_configured; n++) {
+            if (SETTINGS.IO_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
+              MyTopic = SETTINGS.hostname + String("/") + SETTINGS.IO_ident[n] + String("/state");
+              dtostrf(digitalRead(SETTINGS.IO_pin[n]), 6, 2, myfloat_in_Char); 
+              mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
+            }
+          }
+          if (SETTINGS.DS18B20_pin != Not_used_pin_number) { // ce je pin=100 potem je disabled
+            for (int n = 0; n < SETTINGS.DS18B20_num_configured; n++) {
+              if (!isnan(DS18B20_All_Sensor_Values[n])) {
+                MyTopic = SETTINGS.hostname + String("/") + SETTINGS.DS18B20_ident[n] + String("/temperature");
+                dtostrf(DS18B20_All_Sensor_Values[n], 6, 2, myfloat_in_Char); 
+                mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
               }
             }
-            if (SETTINGS.DS18B20_pin != Not_used_pin_number) { // ce je pin=100 potem je disabled
-              for (int n = 0; n < SETTINGS.DS18B20_num_configured; n++) {
-                if (!isnan(DS18B20_All_Sensor_Values[n])) {
-                  char myfloat_in_Char[8];
-                  String MyTopic = SETTINGS.DS18B20_ident[n] + String("/temperature");
-                  dtostrf(DS18B20_All_Sensor_Values[n], 6, 2, myfloat_in_Char); 
-                  client.publish(MyTopic.c_str(), myfloat_in_Char);
-                }
+          }
+          for (int n = 0; n < SETTINGS.DHT_num_configured; n++) {
+            if (SETTINGS.DHT_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
+              if (!isnan(DHT_All_Sensor_Values_Temp[n]) && !isnan(DHT_All_Sensor_Values_Hum[n])) {
+                MyTopic = SETTINGS.hostname + String("/") + SETTINGS.DHT_ident[n] + String("/temperature");
+                dtostrf(DHT_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char); 
+                mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
+                MyTopic = SETTINGS.hostname + String("/") + SETTINGS.DHT_ident[n] + String("/humidity");
+                dtostrf(DHT_All_Sensor_Values_Hum[n], 6, 2, myfloat_in_Char); 
+                mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
+                MyTopic = SETTINGS.hostname + String("/") + SETTINGS.DHT_ident[n] + String("/heatindex");
+                dtostrf(DHT_All_Sensor_Values_Heat[n], 6, 2, myfloat_in_Char); 
+                mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
+                MyTopic = SETTINGS.hostname + String("/") + SETTINGS.DHT_ident[n] + String("/dewpoint");
+                dtostrf(DHT_All_Sensor_Values_Dew[n], 6, 2, myfloat_in_Char); 
+                mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
               }
             }
-            for (int n = 0; n < SETTINGS.DHT_num_configured; n++) {
-              if (SETTINGS.DHT_pin[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-                if (!isnan(DHT_All_Sensor_Values_Temp[n]) && !isnan(DHT_All_Sensor_Values_Hum[n])) {
-                  char myfloat_in_Char[8];
-                  String MyTopic = SETTINGS.DHT_ident[n] + String("/temperature");
-                  dtostrf(DHT_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char); 
-                  client.publish(MyTopic.c_str(), myfloat_in_Char);
-                  MyTopic = SETTINGS.DHT_ident[n] + String("/humidity");
-                  dtostrf(DHT_All_Sensor_Values_Hum[n], 6, 2, myfloat_in_Char); 
-                  client.publish(MyTopic.c_str(), myfloat_in_Char);
-                  MyTopic = SETTINGS.DHT_ident[n] + String("/heat");
-                  dtostrf(DHT_All_Sensor_Values_Heat[n], 6, 2, myfloat_in_Char); 
-                  client.publish(MyTopic.c_str(), myfloat_in_Char);
-                  MyTopic = SETTINGS.DHT_ident[n] + String("/dew");
-                  dtostrf(DHT_All_Sensor_Values_Dew[n], 6, 2, myfloat_in_Char); 
-                  client.publish(MyTopic.c_str(), myfloat_in_Char);
-                }
+          }
+          for (int n = 0; n < SETTINGS.BME280_num_configured; n++) {
+            if (SETTINGS.BME280_pin_sda[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
+              if (!isnan(BME280_All_Sensor_Values_Temp[n])) {
+                dtostrf(BME280_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char);
+                MyTopic = SETTINGS.hostname + String("/") + SETTINGS.BME280_ident[n] + String("/temperature");
+                mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
+                dtostrf(BME280_All_Sensor_Values_Hum[n], 6, 2, myfloat_in_Char);
+                MyTopic = SETTINGS.hostname + String("/") + SETTINGS.BME280_ident[n] + String("/humidity"); 
+                mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
+                dtostrf(BME280_All_Sensor_Values_Press[n], 6, 2, myfloat_in_Char);
+                MyTopic = SETTINGS.hostname + String("/") + SETTINGS.BME280_ident[n] + String("/pressure");
+                mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
+                dtostrf(BME280_All_Sensor_Values_Heat[n], 6, 2, myfloat_in_Char);
+                MyTopic = SETTINGS.hostname + String("/") + SETTINGS.BME280_ident[n] + String("/heatindex");
+                mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
+                dtostrf(BME280_All_Sensor_Values_Dew[n], 6, 2, myfloat_in_Char);
+                MyTopic = SETTINGS.hostname + String("/") + SETTINGS.BME280_ident[n] + String("/dewpoint");
+                mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
               }
             }
-            for (int n = 0; n < SETTINGS.BME280_num_configured; n++) {
-              if (SETTINGS.BME280_pin_sda[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-                if (!isnan(BME280_All_Sensor_Values_Temp[n])) {
-                  char myfloat_in_Char[8];
-                  dtostrf(BME280_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char);
-                  String MyTopic = SETTINGS.BME280_ident[n] + String("/temperature");
-                  client.publish(MyTopic.c_str(), myfloat_in_Char);
-                  dtostrf(BME280_All_Sensor_Values_Hum[n], 6, 2, myfloat_in_Char);
-                  MyTopic = SETTINGS.BME280_ident[n] + String("/humidity"); 
-                  client.publish(MyTopic.c_str(), myfloat_in_Char);
-                  dtostrf(BME280_All_Sensor_Values_Press[n], 6, 2, myfloat_in_Char);
-                  MyTopic = SETTINGS.BME280_ident[n] + String("/pressure");
-                  client.publish(MyTopic.c_str(), myfloat_in_Char);
-                  dtostrf(BME280_All_Sensor_Values_Heat[n], 6, 2, myfloat_in_Char);
-                  MyTopic = SETTINGS.BME280_ident[n] + String("/heat");
-                  client.publish(MyTopic.c_str(), myfloat_in_Char);
-                  dtostrf(BME280_All_Sensor_Values_Dew[n], 6, 2, myfloat_in_Char);
-                  MyTopic = SETTINGS.BME280_ident[n] + String("/dew");
-                  client.publish(MyTopic.c_str(), myfloat_in_Char);
-                }
+          }
+          for (int n = 0; n < SETTINGS.MAX6675_num_configured; n++) {
+            if (SETTINGS.MAX6675_pin_clk[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
+              if (!isnan(MAX6675_All_Sensor_Values_Temp[n])) {
+                dtostrf(MAX6675_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char);
+                MyTopic = SETTINGS.hostname + String("/") + SETTINGS.MAX6675_ident[n] + String("/temperature");
+                mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
               }
             }
-            for (int n = 0; n < SETTINGS.MAX6675_num_configured; n++) {
-              if (SETTINGS.MAX6675_pin_clk[n] != Not_used_pin_number) { // ce je pin=100 potem je disabled
-                if (!isnan(MAX6675_All_Sensor_Values_Temp[n])) {
-                  char myfloat_in_Char[8];
-                  dtostrf(MAX6675_All_Sensor_Values_Temp[n], 6, 2, myfloat_in_Char);
-                  String MyTopic = SETTINGS.MAX6675_ident[n] + String("/temperature");
-                  client.publish(MyTopic.c_str(), myfloat_in_Char);
-                }
-              }
-            }
-            for (int n = 0; n < SETTINGS.Ultrasonic_num_configured; n++) {
-              if (SETTINGS.Ultrasonic_pin_trigger[n] != Not_used_pin_number) {
-                char myfloat_in_Char[8];
-                dtostrf(Ultrasonic_All_Sensor_Values_Distance[n], 6, 2, myfloat_in_Char);
-                String MyTopic = SETTINGS.Ultrasonic_ident[n] + String("/distance");
-                client.publish(MyTopic.c_str(), myfloat_in_Char);
-              }
+          }
+          for (int n = 0; n < SETTINGS.Ultrasonic_num_configured; n++) {
+            if (SETTINGS.Ultrasonic_pin_trigger[n] != Not_used_pin_number) {
+              dtostrf(Ultrasonic_All_Sensor_Values_Distance[n], 6, 2, myfloat_in_Char);
+              MyTopic = SETTINGS.hostname + String("/") + SETTINGS.Ultrasonic_ident[n] + String("/distance");
+              mqtt_client.publish(MyTopic.c_str(), myfloat_in_Char);
             }
           }
         }
@@ -2301,13 +2312,16 @@
       String html = "";
       for(int n = 0; n < SETTINGS.data_collector_num_configured; n++) {
         if (SETTINGS.data_collector_type[n] == 1) {
-          html += "<tr><td>" + String(n) + "</td><td>influxdb_tcp</td><td>" + String(SETTINGS.data_collector_host[n]) + "</td><td>" + String(SETTINGS.data_collector_port[n]) + "</td><td>" + String(SETTINGS.data_collector_push_interval[n]) + "</td><td>" + String(SETTINGS.data_collector_db_username[n]) + "</td><td>" + String(SETTINGS.data_collector_db_password[n]) + "</td></tr>"; 
+          html += "<tr><td>" + String(n) + "</td><td>influxdb_tcp</td><td>" + String(SETTINGS.data_collector_host[n]) + "</td><td>" + String(SETTINGS.data_collector_port[n]) + "</td><td>" + String(SETTINGS.data_collector_push_interval[n]) + "</td><td>" + String(SETTINGS.data_collector_db_name[n]) + "</td><td>" + String(SETTINGS.data_collector_db_username[n]) + "</td><td>" + String(SETTINGS.data_collector_db_password[n]) + "</td></tr>"; 
         }
         if (SETTINGS.data_collector_type[n] == 2) {
-          html += "<tr><td>" + String(n) + "</td><td>carbon_udp</td><td>" + String(SETTINGS.data_collector_host[n]) + "</td><td>" + String(SETTINGS.data_collector_port[n]) + "</td><td>" + String(SETTINGS.data_collector_push_interval[n]) + "</td><td>" + String(SETTINGS.data_collector_db_username[n]) + "</td><td>" + String(SETTINGS.data_collector_db_password[n]) + "</td></tr>"; 
+          html += "<tr><td>" + String(n) + "</td><td>carbon_udp</td><td>" + String(SETTINGS.data_collector_host[n]) + "</td><td>" + String(SETTINGS.data_collector_port[n]) + "</td><td>" + String(SETTINGS.data_collector_push_interval[n]) + "</td><td>" + String(SETTINGS.data_collector_db_name[n]) + "</td><td>" + String(SETTINGS.data_collector_db_username[n]) + "</td><td>" + String(SETTINGS.data_collector_db_password[n]) + "</td></tr>"; 
         }
         if (SETTINGS.data_collector_type[n] == 3) {
-          html += "<tr><td>" + String(n) + "</td><td>redis_tcp</td><td>" + String(SETTINGS.data_collector_host[n]) + "</td><td>" + String(SETTINGS.data_collector_port[n]) + "</td><td>" + String(SETTINGS.data_collector_push_interval[n]) + "</td><td>" + String(SETTINGS.data_collector_db_username[n]) + "</td><td>" + String(SETTINGS.data_collector_db_password[n]) + "</td></tr>"; 
+          html += "<tr><td>" + String(n) + "</td><td>redis_tcp</td><td>" + String(SETTINGS.data_collector_host[n]) + "</td><td>" + String(SETTINGS.data_collector_port[n]) + "</td><td>" + String(SETTINGS.data_collector_push_interval[n]) + "</td><td>" + String(SETTINGS.data_collector_db_name[n]) + "</td><td>" + String(SETTINGS.data_collector_db_username[n]) + "</td><td>" + String(SETTINGS.data_collector_db_password[n]) + "</td></tr>"; 
+        }
+        if (SETTINGS.data_collector_type[n] == 4) {
+          html += "<tr><td>" + String(n) + "</td><td>influxdb_udp</td><td>" + String(SETTINGS.data_collector_host[n]) + "</td><td>" + String(SETTINGS.data_collector_port[n]) + "</td><td>" + String(SETTINGS.data_collector_push_interval[n]) + "</td><td>" + String(SETTINGS.data_collector_db_name[n]) + "</td><td>" + String(SETTINGS.data_collector_db_username[n]) + "</td><td>" + String(SETTINGS.data_collector_db_password[n]) + "</td></tr>"; 
         }
       }    
       return html;
@@ -2327,29 +2341,32 @@
           previousDataCollector[x] = millis();
           String InfluxDataStructure = "";
           String CarbonDataStructure = "";
-          String RedisDataStructure = "";         
+          String RedisDataStructure = "";
+          InfluxDataStructure += "voltage,host=" + String(SETTINGS.hostname) + ",name=system value=" + String((float)ESP.getVcc()/890) + "\n";
+          InfluxDataStructure += "uptime,host=" + String(SETTINGS.hostname) + ",name=system value=" + String((unsigned long)millis()) + "\n";
+          InfluxDataStructure += "wifi,host=" + String(SETTINGS.hostname) + ",name=system value=" + String(WiFi.RSSI()) + "\n";
+          InfluxDataStructure += "freeheap,host=" + String(SETTINGS.hostname) + ",name=system value=" + String(ESP.getFreeHeap()) + "\n";
+          CarbonDataStructure += String(SETTINGS.hostname) + ".system.voltage " + String((float)ESP.getVcc()/890) + " " + now() + "\n";
+          CarbonDataStructure += String(SETTINGS.hostname) + ".system.uptime " + String((unsigned long)millis()) + " " + now() + "\n";
+          CarbonDataStructure += String(SETTINGS.hostname) + ".system.wifi " + String(WiFi.RSSI()) + " " + now() + "\n";
+          CarbonDataStructure += String(SETTINGS.hostname) + ".system.freeheap " + String(ESP.getFreeHeap()) + " " + now() + "\n";
+          String RedisTmpString = ""; 
+          RedisDataStructure += String("*3\r\n") + "$5\r\n" + "LPUSH\r\n";
+          RedisTmpString += "{\"system\": {\"voltage\": \"" + String((float)ESP.getVcc()/890)+ "\", ";
+          RedisTmpString += "\"uptime\": \"" + String((unsigned long)millis()) + "\", ";
+          RedisTmpString += "\"wifi\": \"" + String(WiFi.RSSI()) + "\", ";
+          RedisTmpString += "\"freeheap\": \"" + String(ESP.getFreeHeap()) + "\"}}";
+          RedisDataStructure += "$" + String(strlen(SETTINGS.hostname)) + "\r\n" + String(SETTINGS.hostname) + "\r\n" + "$" + String(RedisTmpString.length()) + "\r\n" + RedisTmpString + "\r\n";
           if ( SETTINGS.data_collector_type[x] == 1 ) {
-            InfluxDataStructure += "voltage,host=" + String(SETTINGS.hostname) + ",name=system value=" + String((float)ESP.getVcc()/890) + "\n";
-            InfluxDataStructure += "uptime,host=" + String(SETTINGS.hostname) + ",name=system value=" + String((unsigned long)millis()) + "\n";
-            InfluxDataStructure += "wifi,host=" + String(SETTINGS.hostname) + ",name=system value=" + String(WiFi.RSSI()) + "\n";
-            InfluxDataStructure += "freeheap,host=" + String(SETTINGS.hostname) + ",name=system value=" + String(ESP.getFreeHeap()) + "\n"; 
-            send_to_influxdb(InfluxDataStructure, x);
+            send_to_influxdb_tcp(InfluxDataStructure, x);
+          }
+          else if ( SETTINGS.data_collector_type[x] == 4 ) {
+            send_to_influxdb_udp(InfluxDataStructure, x);
           }
           else if ( SETTINGS.data_collector_type[x] == 2 ) {
-            CarbonDataStructure += String(SETTINGS.hostname) + ".system.voltage " + String((float)ESP.getVcc()/890) + " " + now() + "\n";
-            CarbonDataStructure += String(SETTINGS.hostname) + ".system.uptime " + String((unsigned long)millis()) + " " + now() + "\n";
-            CarbonDataStructure += String(SETTINGS.hostname) + ".system.wifi " + String(WiFi.RSSI()) + " " + now() + "\n";
-            CarbonDataStructure += String(SETTINGS.hostname) + ".system.freeheap " + String(ESP.getFreeHeap()) + " " + now() + "\n";
             send_to_carbon(CarbonDataStructure, x);
           }
           else if (SETTINGS.data_collector_type[x] == 3) {
-            String RedisTmpString = ""; 
-            RedisDataStructure += String("*3\r\n") + "$5\r\n" + "LPUSH\r\n";
-            RedisTmpString += "{\"system\": {\"voltage\": \"" + String((float)ESP.getVcc()/890)+ "\", ";
-            RedisTmpString += "\"uptime\": \"" + String((unsigned long)millis()) + "\", ";
-            RedisTmpString += "\"wifi\": \"" + String(WiFi.RSSI()) + "\", ";
-            RedisTmpString += "\"freeheap\": \"" + String(ESP.getFreeHeap()) + "\"}}";
-            RedisDataStructure += "$" + String(strlen(SETTINGS.hostname)) + "\r\n" + String(SETTINGS.hostname) + "\r\n" + "$" + String(RedisTmpString.length()) + "\r\n" + RedisTmpString + "\r\n";
             send_to_redis(RedisDataStructure, x);
           }
           InfluxDataStructure = "";
@@ -2366,7 +2383,10 @@
           }
           if (SETTINGS.IO_num_configured  > 0) {
             if ( SETTINGS.data_collector_type[x] == 1 ) {
-              send_to_influxdb(InfluxDataStructure, x);
+              send_to_influxdb_tcp(InfluxDataStructure, x);
+            }
+            else if ( SETTINGS.data_collector_type[x] == 4 ) {
+              send_to_influxdb_udp(InfluxDataStructure, x);
             }
             else if ( SETTINGS.data_collector_type[x] == 2 ) {
               send_to_carbon(CarbonDataStructure, x);
@@ -2388,7 +2408,10 @@
           }
           if (SETTINGS.DS18B20_num_configured  > 0) {
             if ( SETTINGS.data_collector_type[x] == 1 ) {
-              send_to_influxdb(InfluxDataStructure, x);
+              send_to_influxdb_tcp(InfluxDataStructure, x);
+            }
+            else if ( SETTINGS.data_collector_type[x] == 4 ) {
+              send_to_influxdb_udp(InfluxDataStructure, x);
             }
             else if ( SETTINGS.data_collector_type[x] == 2 ) {
               send_to_carbon(CarbonDataStructure, x);
@@ -2423,7 +2446,10 @@
           }
           if (SETTINGS.DHT_num_configured  > 0) {
             if ( SETTINGS.data_collector_type[x] == 1 ) {
-              send_to_influxdb(InfluxDataStructure, x);
+              send_to_influxdb_tcp(InfluxDataStructure, x);
+            }
+            else if ( SETTINGS.data_collector_type[x] == 4 ) {
+              send_to_influxdb_udp(InfluxDataStructure, x);
             }
             else if ( SETTINGS.data_collector_type[x] == 2 ) {
               send_to_carbon(CarbonDataStructure, x);
@@ -2460,7 +2486,10 @@
           }
           if (SETTINGS.BME280_num_configured  > 0) {
             if ( SETTINGS.data_collector_type[x] == 1 ) {
-              send_to_influxdb(InfluxDataStructure, x);
+              send_to_influxdb_tcp(InfluxDataStructure, x);
+            }
+            else if ( SETTINGS.data_collector_type[x] == 4 ) {
+              send_to_influxdb_udp(InfluxDataStructure, x);
             }
             else if ( SETTINGS.data_collector_type[x] == 2 ) {
               send_to_carbon(CarbonDataStructure, x);
@@ -2482,7 +2511,10 @@
           }
           if (SETTINGS.MAX6675_num_configured  > 0) {
             if ( SETTINGS.data_collector_type[x] == 1 ) {
-              send_to_influxdb(InfluxDataStructure, x);
+              send_to_influxdb_tcp(InfluxDataStructure, x);
+            }
+            else if ( SETTINGS.data_collector_type[x] == 4 ) {
+              send_to_influxdb_udp(InfluxDataStructure, x);
             }
             else if ( SETTINGS.data_collector_type[x] == 2 ) {
               send_to_carbon(CarbonDataStructure, x);
@@ -2502,7 +2534,10 @@
           }
           if (SETTINGS.Ultrasonic_num_configured > 0) {
             if ( SETTINGS.data_collector_type[x] == 1 ) {
-              send_to_influxdb(InfluxDataStructure, x);
+              send_to_influxdb_tcp(InfluxDataStructure, x);
+            }
+            else if ( SETTINGS.data_collector_type[x] == 4 ) {
+              send_to_influxdb_udp(InfluxDataStructure, x);
             }
             else if ( SETTINGS.data_collector_type[x] == 2 ) {
               send_to_carbon(CarbonDataStructure, x);
@@ -2524,49 +2559,51 @@
     }
     
     void send_to_redis(String content, int x) {
-      if (WiFi.status() == WL_CONNECTED) { 
-        if (!redis_client.connect(SETTINGS.data_collector_host[x], SETTINGS.data_collector_port[x])) {
-          SendLog(" ERROR: redis (" + String(SETTINGS.data_collector_host[x]) + ":" + String(SETTINGS.data_collector_port[x]) + ") connection failed.");
-          return;
-        }
-        yield();
-        redis_client.print(content);
-        redis_client.stop();
-        redis_client.flush();
+      WiFiClient redis_client;
+      redis_client.setTimeout(50);
+      if (!redis_client.connect(SETTINGS.data_collector_host[x], SETTINGS.data_collector_port[x])) {
+        SendLog(" ERROR: redis (" + String(SETTINGS.data_collector_host[x]) + ":" + String(SETTINGS.data_collector_port[x]) + ") connection failed.");
+        return;
       }
+      yield();
+      redis_client.print(content);
+      redis_client.stop();
     }
-    
-    void send_to_influxdb(String content, int x) {
-      if (WiFi.status() == WL_CONNECTED) {
-        if (!influxdb_client.connect(SETTINGS.data_collector_host[x], SETTINGS.data_collector_port[x])) {
-          SendLog(" ERROR: influxdb (" + String(SETTINGS.data_collector_host[x]) + ":" + String(SETTINGS.data_collector_port[x]) + ") connection failed.");
-          return;
-        }
-        yield(); // <- fixes some issues with WiFi stability
-        if (SETTINGS.data_collector_db_username[x][0] != '\0' && SETTINGS.data_collector_db_password[x][0] != '\0' ) {
-          influxdb_client.print("POST /write?db=" + String(SETTINGS.data_collector_db_name[x]) + "&u=" + String(SETTINGS.data_collector_db_username[x]) + "&p=" + String(SETTINGS.data_collector_db_password[x]) + " HTTP/1.1\r\n");
-        }
-        else {
-          influxdb_client.print("POST /write?db=" + String(SETTINGS.data_collector_db_name[x]) + " HTTP/1.1\r\n");
-        }
-        influxdb_client.print("User-Agent: " + String(SETTINGS.hostname) + "/0.1\r\n");
-        influxdb_client.print("Host: localhost:" + String(SETTINGS.data_collector_port[x]) + "\r\n");
-        influxdb_client.print("Accept: */*\r\n");
-        influxdb_client.print("Content-Length: " + String(content.length()) + "\r\n");
-        influxdb_client.print("Content-Type: application/x-www-form-urlencoded\r\n");
-        influxdb_client.print("\r\n");
-        influxdb_client.print(content + "\r\n");
-        influxdb_client.stop();
-        influxdb_client.flush();
-//        yield();
-//        if (influxdb_client.available()) {
-//          String str = influxdb_client.readStringUntil('\r');
-//          //Serial.println(str);
-//          if (str.indexOf("200 OK")!=-1){
-//            //Serial.println("Influx Data upload to Server Success!");
-//          }
-//        }
+
+    void send_to_influxdb_udp (String msgtosend, int x) {
+        unsigned int msg_length = msgtosend.length();
+        byte* p = (byte*)malloc(msg_length);
+        memcpy(p, (char*) msgtosend.c_str(), msg_length);
+        udp.beginPacket(SETTINGS.data_collector_host[x], SETTINGS.data_collector_port[x]);
+        udp.write(p, msg_length);
+        udp.endPacket();
+        free(p);
+        yield();
+    }
+
+    void send_to_influxdb_tcp (String content, int x) {
+      WiFiClient influxdb_client;
+      influxdb_client.setTimeout(50);
+      if (!influxdb_client.connect(SETTINGS.data_collector_host[x], SETTINGS.data_collector_port[x])) {
+        SendLog(" ERROR: influxdb (" + String(SETTINGS.data_collector_host[x]) + ":" + String(SETTINGS.data_collector_port[x]) + ") connection failed.");
+        return;
       }
+      String Payload = "";
+      if (SETTINGS.data_collector_db_username[x][0] != '\0' && SETTINGS.data_collector_db_password[x][0] != '\0' ) {
+        Payload += "POST /write?db=" + String(SETTINGS.data_collector_db_name[x]) + "&u=" + String(SETTINGS.data_collector_db_username[x]) + "&p=" + String(SETTINGS.data_collector_db_password[x]) + " HTTP/1.1\r\n";
+      }
+      else {
+        Payload += "POST /write?db=" + String(SETTINGS.data_collector_db_name[x]) + " HTTP/1.1\r\n";
+      }
+      Payload += "User-Agent: " + String(SETTINGS.hostname) + "/0.1\r\n";
+      Payload += "Host: localhost:" + String(SETTINGS.data_collector_port[x]) + "\r\n";
+      Payload += "Accept: */*\r\n";
+      Payload += "Content-Length: " + String(content.length()) + "\r\n";
+      Payload += "Content-Type: application/x-www-form-urlencoded\r\n";
+      Payload += "\r\n";
+      Payload +=  content + "\r\n";
+      influxdb_client.print(Payload);
+      influxdb_client.stop();
     }
 
     void send_to_carbon (String msgtosend, int x) {
@@ -2687,4 +2724,5 @@
       String html = BackURLSystemSettings;
       server.send(200, "text/html", html);
     }
+
     
