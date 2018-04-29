@@ -7,7 +7,8 @@ or pulled from it. Data can be periodically pushed to:
  - influxdb (TCP or UDP)
  - carbon (UDP)
  - redis (TCP)
-Or pulled via http as json data.
+
+or pulled via http as json data.
 
 Sensors data can be subscribed through MQTT protocol to mqtt broker/server. Output ports can be controlled via MQTT publish.
 
