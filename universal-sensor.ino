@@ -217,7 +217,7 @@
     unsigned int localPort = 2390;
     // default IP, povozijo ga nastavitve iz EEPROM-a
     IPAddress syslogServer(0, 0, 0, 0);
-    String Version = "20180302";
+    String Version = "20180429";
 
     // ntp
     time_t getNTPtime(void);
@@ -682,15 +682,15 @@
       // MAIN LOOP //
       server.handleClient();
       yield();
+      IO_set_pin_to_low_after_sometime(); 
+      yield();
       domoticz_update_client();
       yield();
       data_collector_send_data();
       yield();
-      IO_set_pin_to_low_after_sometime(); 
-      yield();
       mqtt_loop();
       yield();
-      mqtt_send_data(); 
+      mqtt_send_data();
       if (millis() - previousMillis >= 2000) {
         previousMillis = millis();
         yield();
@@ -973,17 +973,15 @@
     
 
     void SendUDPSyslog(String msgtosend) {
-      if (WiFi.status() == WL_CONNECTED) {
-        if (SETTINGS.syslog[0] != '\0') { // preverim ali syslog IP nastavljen
-          unsigned int msg_length = msgtosend.length();
-          byte* p = (byte*)malloc(msg_length);
-          memcpy(p, (char*) msgtosend.c_str(), msg_length);
-          udp.beginPacket(syslogServer, 514);
-          udp.write(SETTINGS.hostname);
-          udp.write(p, msg_length);
-          udp.endPacket();
-          free(p);
-        }
+      if (SETTINGS.syslog[0] != '\0') { // preverim ali syslog IP nastavljen
+        unsigned int msg_length = msgtosend.length();
+        byte* p = (byte*)malloc(msg_length);
+        memcpy(p, (char*) msgtosend.c_str(), msg_length);
+        udp.beginPacket(syslogServer, 514);
+        udp.write(SETTINGS.hostname);
+        udp.write(p, msg_length);
+        udp.endPacket();
+        free(p);
       }
     }
     
@@ -2153,6 +2151,8 @@
 
     void mqtt_init() {
       MQTT_Client.setTimeout(50);
+      //mqtt_client.setOptions(10, true, 1000); // defaults
+      mqtt_client.setOptions(2, true, 50);
       // Note: Local domain names (e.g. "Computer.local" on OSX) are not supported by Arduino.
       // You need to set the IP address directly.
       mqtt_client.begin(SETTINGS.mqtt_server, SETTINGS.mqtt_port, MQTT_Client);
