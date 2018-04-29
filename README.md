@@ -2,11 +2,11 @@
 
 An open source arduino based firmware for esp8266. To which we connect the desired sensors
 and configure them in the settings. Sensors data is displayed on webpage and can be pushed
-or pulled from it. Data can be periodically pushed:
- - to <a href="https://domoticz.com/">Domoticz</a> (home automation system) via domoticz http api
- - to influxdb (TCP or UDP)
- - to carbon (UDP)
- - to redis (TCP)
+or pulled from it. Data can be periodically pushed to:
+ - <a href="https://domoticz.com/">Domoticz</a> (home automation system) via domoticz http api
+ - influxdb (TCP or UDP)
+ - carbon (UDP)
+ - redis (TCP)
 Or pulled via http as json data.
 
 Sensors data can be subscribed through MQTT protocol to mqtt broker/server. Output ports can be controlled via MQTT publish.
