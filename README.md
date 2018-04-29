@@ -4,12 +4,14 @@ An open source arduino based firmware for esp8266. To which we connect the desir
 and configure them in the settings. Sensors data is displayed on webpage and can be pushed
 or pulled from it. Data can be periodically pushed:
  - to <a href="https://domoticz.com/">Domoticz</a> (home automation system) via domoticz http api
- - or via Simple http post   
+ - to influxdb (TCP or UDP)
+ - to carbon (UDP)
+ - to redis (TCP)
 Or pulled via http as json data.
 
 Sensors data can be subscribed through MQTT protocol to mqtt broker/server. Output ports can be controlled via MQTT publish.
 
-Logging is also supported as syslog using TCP.
+Logging is also supported as syslog using UDP.
 
 Currently supported sensors: DS18B20, DHT11, DHT22, DHT21, AM2302, BME280, K-type with MAX6675, ultrasonic HC-SR04. I/O pins as
 output can be button or url controlled.
